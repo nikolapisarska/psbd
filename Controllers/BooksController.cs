@@ -9,13 +9,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 
 namespace meow.Controllers
-{[MeowAuthorize("Admin")]
+{
+    [MeowAuthorize("Admin")]
     public class BooksController : Controller
     {
         private readonly LibraryDbContext _context;
         private readonly IWebHostEnvironment _webHostEnvironment;
 
-     
         private readonly string[] _wszystkieGatunki = new[] { 
             "Biografia", "Biznes", "Ezoteryka i parapsychologia", "Fantasy", "Historia", 
             "Komiksy, Mangy", "Kryminał", "Dla dzieci", "Dla młodzieży", "Kuchnia i diety",
@@ -52,43 +52,26 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 2. KREATOR: DODAWANIE NOWEGO PRODUKTU (POPRAWIONY BINDING STANÓW)
+        // 2. OTWARCIE FORMULARZA TWORZENIA (ŻĄDANIE GET)
+        // ==========================================================
+        [HttpGet]
+        public IActionResult Create()
+        {
+            if (HttpContext.Session.GetString("User") == null) return RedirectToAction("Login", "Account");
+            return View();
+        }
+
+        // ==========================================================
+        // 3. ZAPIS FORMULARZA DO BAZY (WŁAŚCIWE ŻĄDANIE POST)
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Tytul,Autor,Gatunek,RokWydania,IloscEgzemplarzy,Cena")] Book book, string stanProduktu)
-        {
-            if (ModelState.IsValid)
-            {
-                // 1. Zapisujemy główną książkę do bazy, aby baza nadała jej Id
-                _context.Add(book);
-                await _context.SaveChangesAsync();
-
-                // 2. Automatycznie tworzymy fizyczny egzemplarz na stanie z pobranym z formularza stanem
-                var nowyEgzemplarz = new Egzemplarz
-                {
-                    IdKsiazka = book.Id,
-                    NumerInwentarzowy = $"INV-{book.Id}-01",
-                    Stan = string.IsNullOrEmpty(stanProduktu) ? "Nowy" : stanProduktu // <--- Zapisujemy stan!
-                };
-
-                _context.Egzemplarze.Add(nowyEgzemplarz);
-                await _context.SaveChangesAsync();
-
-                return RedirectToAction(nameof(Index));
-            }
-            return View(book);
-        }
-        [HttpPost]
-        [MeowAuthorize]
-        public IActionResult Create(Book book, int ilosc, string[] stany, IFormFile zdjecieOkładki)
+        public IActionResult Create(Book book, int iloscBiblioteka, string[] stany, IFormFile zdjecieOkładki)
         {
             using var transaction = _context.Database.BeginTransaction();
             try
             {
-                // Właściwości handlowe oraz techniczne (Cena, CenaOkladkowa, IloscDoSprzedazy, Opis itp.) 
-                // są automatycznie mapowane bezpośrednio do obiektu 'book' z formularza HTML.
-
+                // Obsługa wgrywania zdjęcia okładki
                 if (zdjecieOkładki != null && zdjecieOkładki.Length > 0)
                 {
                     var fileName = Guid.NewGuid().ToString() + Path.GetExtension(zdjecieOkładki.FileName);
@@ -105,12 +88,14 @@ namespace meow.Controllers
                     book.ImageUrl = "/images/" + fileName;
                 }
 
+                // Dodanie książki z pełną specyfikacją (Cena, CenaOkladkowa itd.)
                 _context.Books.Add(book);
                 _context.SaveChanges();
 
-                if (ilosc > 0)
+                // Generowanie fizycznych egzemplarzy do modułu wypożyczeń biblioteki
+                if (iloscBiblioteka > 0)
                 {
-                    for (int i = 0; i < ilosc; i++)
+                    for (int i = 0; i < iloscBiblioteka; i++)
                     {
                         string stan = (stany != null && stany.Length > i) ? stany[i] : "idealny";
                         string nrInw = $"INV-{DateTime.Now.Year}-{book.Id}-{Guid.NewGuid().ToString().Substring(0, 5).ToUpper()}";
@@ -125,7 +110,7 @@ namespace meow.Controllers
                     }
                 }
 
-                book.IloscEgzemplarzy = ilosc;
+                book.IloscEgzemplarzy = iloscBiblioteka;
                 _context.SaveChanges();
                 transaction.Commit();
 
@@ -135,7 +120,7 @@ namespace meow.Controllers
             catch (Exception ex)
             {
                 transaction.Rollback();
-                TempData["Message"] = "Błąd zapisu: " + ex.Message;
+                TempData["Message"] = "Błąd zapisu produktu: " + ex.Message;
                 TempData["MessageType"] = "error";
             }
 
@@ -143,7 +128,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 3. ZARZĄDZANIE OFERTĄ SKLEPU I SPECYFIKACJĄ
+        // 4. ZARZĄDZANIE OFERTĄ SKLEPU I SPECYFIKACJĄ (EDYCJA)
         // ==========================================================
         [HttpGet]
         public IActionResult Edit(int id)
@@ -165,7 +150,6 @@ namespace meow.Controllers
 
             try
             {
-                // Aktualizacja podstawowych informacji handlowych
                 bookInDb.Tytul = updatedBook.Tytul;
                 bookInDb.Autor = updatedBook.Autor;
                 bookInDb.Gatunek = updatedBook.Gatunek;
@@ -175,7 +159,6 @@ namespace meow.Controllers
                 bookInDb.Opis = opis;
                 bookInDb.CenaOkladkowa = updatedBook.CenaOkladkowa;
 
-                // Aktualizacja pełnej specyfikacji technicznej
                 bookInDb.Wydawnictwo = updatedBook.Wydawnictwo;
                 bookInDb.LiczbaStron = updatedBook.LiczbaStron;
                 bookInDb.OkladkaTyp = updatedBook.OkladkaTyp;
@@ -193,7 +176,6 @@ namespace meow.Controllers
                 bookInDb.GlebokoscMm = updatedBook.GlebokoscMm;
                 bookInDb.SzerokoscMm = updatedBook.SzerokoscMm;
 
-                // Obsługa zmiany okładki graficznej
                 if (noweZdjecie != null && noweZdjecie.Length > 0)
                 {
                     var fileName = Guid.NewGuid().ToString() + Path.GetExtension(noweZdjecie.FileName);
@@ -209,7 +191,7 @@ namespace meow.Controllers
                 }
 
                 _context.SaveChanges();
-                TempData["Message"] = $"Zaktualizowano parametry oferty i specyfikacji dla '{bookInDb.Tytul}'! 🐾";
+                TempData["Message"] = $"Zaktualizowano parametry oferty dla '{bookInDb.Tytul}'! 🐾";
                 TempData["MessageType"] = "success";
             }
             catch (Exception ex)
@@ -222,7 +204,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 4. EDYCJA STANU FIZYCZNEGO EGZEMPLARZA
+        // 5. EDYCJA STANU FIZYCZNEGO EGZEMPLARZA
         // ==========================================================
         [HttpPost]
         public IActionResult ZapiszEgzemplarz(int idEgzemplarza, string stan)
@@ -239,7 +221,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 5. USUWANIE ZASOBÓW
+        // 6. USUWANIE ZASOBÓW
         // ==========================================================
         public IActionResult UsunEgzemplarz(int id)
         {
@@ -282,13 +264,13 @@ namespace meow.Controllers
                 }
 
                 transaction.Commit();
-                TempData["Message"] = "Egzemplarz został pomyślnie usunięty z systemu meow.";
+                TempData["Message"] = "Egzemplarz został pomyślnie usunięty.";
                 TempData["MessageType"] = "success";
             }
             catch (Exception ex)
             {
                 transaction.Rollback();
-                TempData["Message"] = "Błąd podczas usuwania zasobu: " + ex.Message;
+                TempData["Message"] = "Błąd podczas usuwania: " + ex.Message;
                 TempData["MessageType"] = "error";
             }
 
