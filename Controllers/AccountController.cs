@@ -65,22 +65,30 @@ namespace meow.Controllers
                 DateGenerated = p.Wypozyczenie?.DataZwrotu?.ToString("yyyy-MM-dd") ?? DateTime.Now.ToString("yyyy-MM-dd")
             }).ToList();
 
+         
+            var suroweWypozyczenia = _context.Wypozyczenia
+                .Include(w => w.Egzemplarz).ThenInclude(e => e!.Book)
+                .Where(w => w.IdKlient == klient.IdKlienta && w.IdEgzemplarz != null)
+                .ToList(); // Najpierw pobieramy dane z MySQL, żeby uniknąć błędu rzutowania dat
+
+            var zmapowaneWypozyczenia = suroweWypozyczenia.Select(w => new RentalHistoryItem
+            {
+                Id = w.IdWypozyczenie,
+                BookTitle = w.Egzemplarz != null && w.Egzemplarz.Book != null ? w.Egzemplarz.Book.Tytul : "Nieznany tytuł",
+                RentalDate = w.DataWypozyczenia.ToString("yyyy-MM-dd"),
+                Status = w.DataZwrotu.HasValue ? "Rozliczone" : (DateTime.Today > w.DataPlanowanegoZwrotu ? "Zaległość" : "Aktywne"),
+                ReturnDate = w.DataZwrotu.HasValue 
+                    ? $"Zwrócono ({w.DataZwrotu.Value.ToString("yyyy-MM-dd")})" 
+                    : (DateTime.Today > w.DataPlanowanegoZwrotu 
+                        ? $"Po terminie o {(DateTime.Today - w.DataPlanowanegoZwrotu).Days} dni" 
+                        : $"Zostało {(w.DataPlanowanegoZwrotu - DateTime.Today).Days} dni")
+            }).ToList();
+
             // 4. Budowanie pełnego modelu widoku profilu
             var model = new ProfileViewModel
             {
                 CustomerName = $"{klient.Imie} {klient.Nazwisko}",
-                
-                // --- SEKCJA WYPOŻYCZEŃ ---
-                Rentals = _context.Wypozyczenia
-                    .Where(w => w.IdKlient == klient.IdKlienta && w.IdEgzemplarz != null)
-                    .Select(w => new RentalHistoryItem
-                    {
-                        Id = w.IdWypozyczenie,
-                        BookTitle = w.Egzemplarz != null && w.Egzemplarz.Book != null ? w.Egzemplarz.Book.Tytul : "Nieznany tytuł",
-                        RentalDate = w.DataWypozyczenia.ToString("yyyy-MM-dd"),
-                        Status = w.DataZwrotu.HasValue ? "Rozliczone" : (DateTime.Today > w.DataPlanowanegoZwrotu ? "Zaległość" : "Aktywne"),
-                        ReturnDate = w.DataZwrotu.HasValue ? "Zwrócona" : "Wypożyczona" 
-                    }).ToList(), 
+                Rentals = zmapowaneWypozyczenia, // Przekazujemy bezpiecznie zmapowaną listę
 
                 // --- SEKCJA ZAMÓWIEŃ Z PEŁNYM DOSTĘPEM DO SZCZEGÓŁÓW ---
                 Packages = _context.Zamowienia
@@ -140,7 +148,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 3. LOGOWANIE (POST) - NAPRAWIONE WPISYWANIE KLIENTA DO SESJI
+        // 3. LOGOWANIE (POST)
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken] 
@@ -152,18 +160,15 @@ namespace meow.Controllers
 
             if (user != null && BCrypt.Net.BCrypt.Verify(haslo, user.Haslo))
             {
-                // Zapisujemy podstawowe zmienne tekstowe
                 HttpContext.Session.SetString("User", user.Login ?? "Użytkownik");
                 HttpContext.Session.SetString("UserRole", user.Rola ?? "Klient");
 
-                // PANCERNY ZAPIS ID: bierzemy bezpośrednio przypisany KlientId z konta użytkownika
                 if (user.KlientId.HasValue)
                 {
                     HttpContext.Session.SetInt32("UserId", user.KlientId.Value);
                 }
                 else
                 {
-                    // Awaryjne dopełnienie na wypadek logowania starych kont tekstowych
                     var powiazanyKlient = await _context.Klienci.FirstOrDefaultAsync(k => k.Email == user.Login);
                     if (powiazanyKlient != null)
                     {

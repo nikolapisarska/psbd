@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
 
 namespace meow.Controllers
-{[MeowAuthorize("Admin")]
+{
   
     public class RentalsController : Controller
     {
@@ -22,9 +22,9 @@ namespace meow.Controllers
         // 1. FORMULARZ METODY GET (DODAWANIE WYPOŻYCZENIA PRZEZ ADMINA)
         // ==========================================================
         [HttpGet]
+        [MeowAuthorize("Admin")] 
         public IActionResult Create(int? bookId)
         {
-            // Zabezpieczenie roli przed nieautoryzowanym dostępem
             if (HttpContext.Session.GetString("UserRole") != "Admin")
                 return RedirectToAction("Login", "Account");
 
@@ -54,7 +54,7 @@ namespace meow.Controllers
         // 2. ZAPIS FORMULARZA POST (MANUALNA REJESTRACJA WYDANIA - ADMIN)
         // ==========================================================
         [HttpPost]
-        [MeowAuthorize]
+        [MeowAuthorize("Admin")] 
         public IActionResult Create(int id_klient, int id_egzemplarz, DateTime data_wypozyczenia)
         {
             if (HttpContext.Session.GetString("UserRole") != "Admin")
@@ -86,17 +86,16 @@ namespace meow.Controllers
             return RedirectToAction("Returns");
         }
 
-      // ==========================================================
+        // ==========================================================
         // 3. SPIS AKTYWNYCH WYPOŻYCZEŃ BIBLIOTECZNYCH I HISTORIA ZAMÓWIEŃ SKLEPU
         // ==========================================================
         [HttpGet]
+        [MeowAuthorize("Admin")] 
         public IActionResult Returns()
         {
-            // Pełna kontrola dostępu oparta na roli
             if (HttpContext.Session.GetString("UserRole") != "Admin") 
                 return RedirectToAction("Login", "Account");
 
-            // 1. Pobieramy aktywne, fizyczne wypożyczenia biblioteczne (Nienaruszone)
             var listaWypozyczen = _context.Wypozyczenia
                 .Include(w => w.Klient)
                 .Include(w => w.Egzemplarz).ThenInclude(e => e!.Book)
@@ -104,19 +103,16 @@ namespace meow.Controllers
                 .OrderByDescending(w => w.DataWypozyczenia)
                 .ToList();
 
-            // 2. Pobieramy WSZYSTKIE zamówienia ze sklepu internetowego z bazy danych
             var suroweZamowieniaSklepowe = _context.Zamowienia
                 .Include(z => z.Klient)
                 .Include(z => z.Book)
                 .ToList();
 
-            // 3. Budujemy dla Admina zaawansowaną strukturę historii zamówień (Grupowanie po numerze paczki)
             var historiaZamowienDlaAdmina = suroweZamowieniaSklepowe
                 .GroupBy(z => z.NumerSledzenia ?? Guid.NewGuid().ToString())
                 .Select(g => {
                     var pierwsze = g.First();
                     
-                    // Zliczamy unikalne pozycje i ich ilości w tym konkretnym zamówieniu
                     var pozycjeWZamowieniu = g
                         .Where(z => z.Book != null)
                         .GroupBy(z => z.IdKsiazki)
@@ -127,13 +123,10 @@ namespace meow.Controllers
                             Ilosc = bGroup.Count()
                         }).ToList();
 
-                    // Obliczamy łączną wartość finansową całego koszyka klienta
                     decimal lacznaWartosc = pozycjeWZamowieniu.Sum(p => p.Cena * p.Ilosc);
 
-                    // Tworzymy czytelny opis tekstowy zakupionych pozycji dla tabeli głównej Admina
                     string skrótZakupów = string.Join(", ", pozycjeWZamowieniu.Select(p => $"„{p.Tytul}” ({p.Ilosc} szt.)"));
 
-                    // Używamy tymczasowego obiektu anonimowego przesyłanego przez ViewBag
                     return new {
                         OrderId = pierwsze.Id,
                         KlientNazwa = pierwsze.Klient != null ? $"{pierwsze.Klient.Imie} {pierwsze.Klient.Nazwisko}" : "Klient Sklepowy",
@@ -144,21 +137,22 @@ namespace meow.Controllers
                         TrackingNumber = pierwsze.NumerSledzenia ?? "Brak numeru",
                         WartoscZamowienia = lacznaWartosc,
                         OpisPozycji = skrótZakupów,
-                        SzczegolyPozycji = pozycjeWZamowieniu // Przekazujemy pełną listę do rozwijanego menu panelu
+                        SzczegolyPozycji = pozycjeWZamowieniu 
                     };
                 })
                 .OrderByDescending(z => z.OrderId)
-                .ToList<object>(); // Rzutujemy na listę obiektów, aby ViewBag bez problemu ją przetworzył
+                .ToList<object>();
 
-            // Przekazujemy gotową strukturę historii do widoku panelu administracyjnego
             ViewBag.ZamowieniaSklepowe = historiaZamowienDlaAdmina;
 
             return View(listaWypozyczen);
         }
+
         // ==========================================================
         // 4. POTWIERDZENIE ODBIORU REZERWACJI (START LICZENIA 30 DNI)
         // ==========================================================
         [HttpPost]
+        [MeowAuthorize("Admin")] 
         public IActionResult ZatwierdzOdbior(int id_wypozyczenie)
         {
             if (HttpContext.Session.GetString("UserRole") != "Admin")
@@ -182,9 +176,9 @@ namespace meow.Controllers
         // 5. REZERWACJA ONLINE PRZEZ KLIENTA (Z WYBOREM EGZEMPLARZA)
         // ==========================================================
         [HttpPost]
+      
         public IActionResult Zarezerwuj(int idEgzemplarza)
         {
-            // 1. Najpierw pobieramy dane o wybranym egzemplarzu, żeby znać ID książki
             var egzemplarz = _context.Egzemplarze
                 .Include(e => e.Book)
                 .FirstOrDefault(e => e.IdEgzemplarza == idEgzemplarza);
@@ -198,15 +192,14 @@ namespace meow.Controllers
 
             int idKsiazki = egzemplarz.Book?.Id ?? 1;
 
-            // 2. Sprawdzamy, czy użytkownik w ogóle jest zalogowany
-            if (HttpContext.Session.GetString("User") == null)
+         
+            if (string.IsNullOrEmpty(HttpContext.Session.GetString("User")))
             {
                 TempData["Message"] = "Musisz się zalogować, aby zarezerwować tę książkę stacjonarnie.";
                 TempData["MessageType"] = "error";
                 return RedirectToAction("Login", "Account", new { returnUrl = $"/Shop/Details/{idKsiazki}" });
             }
 
-            // 3. Bezpiecznie wyciągamy IdKlienta z sesji
             int? idKlienta = HttpContext.Session.GetInt32("UserId");
             if (idKlienta == null)
             {
@@ -214,7 +207,6 @@ namespace meow.Controllers
                 idKlienta = domyslnyKlient?.IdKlienta ?? 1;
             }
 
-            // 4. NAPRAWIONA KOLEJNOŚĆ: Teraz sprawdzamy blokadę przetrzymania, bo znamy już idKlienta i idKsiazki!
             bool maZaleglosci = _context.Wypozyczenia.Any(w => 
                 w.IdKlient == idKlienta.Value && 
                 w.DataZwrotu == null && 
@@ -227,7 +219,6 @@ namespace meow.Controllers
                 return RedirectToAction("Details", "Shop", new { id = idKsiazki });
             }
 
-            // 5. Sprawdzamy, czy ktoś nas nie ubiegł z tą rezerwacją
             var czyZajety = _context.Wypozyczenia.Any(w => w.IdEgzemplarz == idEgzemplarza && w.DataZwrotu == null);
             if (czyZajety)
             {
@@ -242,7 +233,7 @@ namespace meow.Controllers
             {
                 IdKlient = idKlienta.Value,
                 IdEgzemplarz = idEgzemplarza,
-                IdKsiazki = idKsiazki, // Trwałe przypisanie ID książki dla widoku profilu
+                IdKsiazki = idKsiazki, 
                 DataWypozyczenia = DateTime.Today,
                 DataPlanowanegoZwrotu = dataNaOdbior, 
                 DataZwrotu = null
@@ -262,6 +253,7 @@ namespace meow.Controllers
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [MeowAuthorize("Admin")]
         public IActionResult ZwrocKsiazke(int id_wypozyczenie, DateTime data_zwrotu)
         {
             if (HttpContext.Session.GetString("UserRole") != "Admin")
@@ -308,21 +300,22 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 7. ZWROT REKOMENDOWANY DLA LINKÓW ZEWNĘTRZNYCH (ZABEZPIECZENIE)
+        // 7. ZWROT REKOMENDOWANY DLA LINKÓW ZEWNĘTRZNYCH
         // ==========================================================
         [HttpGet]
+        [MeowAuthorize("Admin")]
         public IActionResult Orders()
         {
             return RedirectToAction("Returns");
         }
 
         // ==========================================================
-// 8. ZMIANA STATUSU: ZATWIERDZENIE WYSYŁKI PACZKI SKLEPOWEJ
-// ==========================================================
+        // 8. ZMIANA STATUSU: ZATWIERDZENIE WYSYŁKI PACZKI SKLEPOWEJ
+        // ==========================================================
         [HttpPost]
+        [MeowAuthorize("Admin")] 
         public IActionResult ZatwierdzWysylke(string trackingNumber)
         {
-            // Pełna ochrona roli
             if (HttpContext.Session.GetString("UserRole") != "Admin")
                 return RedirectToAction("Login", "Account");
 
@@ -333,7 +326,6 @@ namespace meow.Controllers
                 return RedirectToAction("Returns");
             }
 
-            // POPRAWKA: Pobieramy od razu wszystkie pozycje z tym konkretnym numerem śledzenia
             var calaPaczka = _context.Zamowienia
                 .Where(z => z.NumerSledzenia == trackingNumber)
                 .ToList();
@@ -345,7 +337,6 @@ namespace meow.Controllers
                 return RedirectToAction("Returns");
             }
 
-            // Zmieniamy status wszystkim elementom wchodzącym w skład tej przesyłki
             foreach (var item in calaPaczka)
             {
                 item.Status = "Wysłana";

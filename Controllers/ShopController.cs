@@ -211,7 +211,7 @@ namespace meow.Controllers
             var cartString = HttpContext.Session.GetString("Koszyk") ?? "";
             if (string.IsNullOrEmpty(cartString)) return RedirectToAction("Cart");
 
-            // 1. Pobieramy login tekstowy zalogowanej osoby (np. "superadmin" lub login klienta)
+            // 1. Pobieram login tekstowy zalogowanej osoby 
             var sessionUser = HttpContext.Session.GetString("User");
             
             // Jeśli sesja tekstowa jest pusta, oznacza to że nikt się nie zalogował
@@ -222,7 +222,7 @@ namespace meow.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // 2. Szukamy w bazie użytkownika po jego loginie z sesji i dołączamy jego profil Klienta
+            // 2. Szuka w bazie użytkownika po jego loginie z sesji i dołączamy jego profil Klienta
             var uzytkownik = _context.Users
                 .Include(u => u.Klient)
                 .FirstOrDefault(u => u.Login == sessionUser);
@@ -230,14 +230,14 @@ namespace meow.Controllers
             // Jeśli nie ma takiego użytkownika lub nie ma przypisanego profilu klienta
             if (uzytkownik == null || uzytkownik.Klient == null)
             {
-                // Awaryjnie bierzemy pierwszego lepszego klienta, żeby strona się nie wywaliła podczas prezentacji
+                // Awaryjnie bierze pierwszego lepszego klienta, żeby strona się nie wywaliła podczas prezentacji
                 var awaryjnyKlient = _context.Klienci.FirstOrDefault();
                 if (awaryjnyKlient == null) return RedirectToAction("Index", "Home");
                 
                 return View(awaryjnyKlient);
             }
 
-            // Pobieramy dane zalogowanego klienta (z rejestracji!)
+            // Pobiera dane zalogowanego klienta (z rejestracji!)
             var klientData = uzytkownik.Klient;
 
             // Wyliczenie wartości koszyka
@@ -294,7 +294,7 @@ namespace meow.Controllers
         public IActionResult FinalizeOrder(string metodaDostawy, decimal kosztDostawy, string metodaPlatnosci,
             string? kodBlik)
         {
-            // 1. Wyciągamy login tekstowy użytkownika z sesji
+            // 1. Wyciąga login tekstowy użytkownika z sesji
             var sessionUser = HttpContext.Session.GetString("User");
 
             if (string.IsNullOrEmpty(sessionUser))
@@ -304,14 +304,14 @@ namespace meow.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // 2. Szukamy poprawnego KlientId przypisanego do loginu użytkownika
+            // 2. Szuka poprawnego KlientId przypisanego do loginu użytkownika
             var uzytkownik = _context.Users.FirstOrDefault(u => u.Login == sessionUser);
             if (uzytkownik == null)
             {
                 return RedirectToAction("Login", "Account");
             }
 
-            // Pobieramy ID klienta (jeśli null, przypisujemy awaryjnie 0 lub ID pierwszego klienta)
+            // Pobiera ID klienta (jeśli null, przypisujemy awaryjnie 0 lub ID pierwszego klienta)
             int finalKlientId = uzytkownik.KlientId ?? 0;
             if (finalKlientId == 0)
             {
@@ -330,7 +330,7 @@ namespace meow.Controllers
             var bookIds = cartString.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList();
             var zakupioneGrupy = bookIds.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
 
-            // UWAGA: Reszta metody (blok strategy.Execute i transakcja) zostaje DOKŁADNIE TAKA SAMA, JAK MIAŁAŚ
+
             var strategy = _context.Database.CreateExecutionStrategy();
 
             strategy.Execute(() =>
