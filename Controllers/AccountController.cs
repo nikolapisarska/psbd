@@ -6,6 +6,7 @@ using meow.Models;
 using System.Linq;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using BCrypt.Net;
 
 namespace meow.Controllers
@@ -26,30 +27,31 @@ namespace meow.Controllers
         [HttpGet]
         public IActionResult Profile()
         {
-            // 1. Walidacja sesji
+            // 1. Pobieramy login tekstowy z sesji
             var userLogin = HttpContext.Session.GetString("User");
-            var clientId = HttpContext.Session.GetInt32("UserId");
-            var userRole = HttpContext.Session.GetString("UserRole"); // Dodane dla sprawdzenia roli
+            var userRole = HttpContext.Session.GetString("UserRole");
 
-            // --- ZABEZPIECZENIE DLA ADMINA (Oryginalna logika zachowana, dodany warunek) ---
+            // Zabezpieczenie przekierowania dla administratora
             if (userRole == "Admin")
             {
-                return RedirectToAction("Index", "Admin"); // Zakładając, że masz taki kontroler
+                return RedirectToAction("Index", "Admin"); 
             }
 
-            if (string.IsNullOrEmpty(userLogin) || !clientId.HasValue)
+            if (string.IsNullOrEmpty(userLogin))
             {
                 return RedirectToAction("Login", "Account");
             }
 
-            // 2. Pobranie danych klienta z bazy
-            var klient = _context.Klienci.FirstOrDefault(k => k.IdKlienta == clientId.Value);
-            if (klient == null)
+            // 2. Szukamy użytkownika w bazie na podstawie loginu i dołączamy profil Klienta
+            var userInDb = _context.Users.Include(u => u.Klient).FirstOrDefault(u => u.Login == userLogin);
+            if (userInDb == null || userInDb.Klient == null)
             {
                 return RedirectToAction("Login", "Account");
             }
 
-            // 3. Pobranie i zmapowanie kar finansowych (Punkt 2)
+            var klient = userInDb.Klient;
+
+            // 3. Pobranie i zmapowanie kar finansowych
             var nienaliczoneKary = _context.Platnosci
                 .Include(p => p.Wypozyczenie).ThenInclude(w => w!.Egzemplarz).ThenInclude(e => e!.Book)
                 .Where(p => p.Wypozyczenie != null && p.Wypozyczenie.IdKlient == klient.IdKlienta)
@@ -138,11 +140,10 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 3. LOGOWANIE (POST)
+        // 3. LOGOWANIE (POST) - NAPRAWIONE WPISYWANIE KLIENTA DO SESJI
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken] 
-       
         public async Task<IActionResult> Login(string login, string haslo, string? returnUrl)
         {
             var user = await _context.Users
@@ -151,17 +152,25 @@ namespace meow.Controllers
 
             if (user != null && BCrypt.Net.BCrypt.Verify(haslo, user.Haslo))
             {
+                // Zapisujemy podstawowe zmienne tekstowe
                 HttpContext.Session.SetString("User", user.Login ?? "Użytkownik");
                 HttpContext.Session.SetString("UserRole", user.Rola ?? "Klient");
 
-                if (!user.KlientId.HasValue)
+                // PANCERNY ZAPIS ID: bierzemy bezpośrednio przypisany KlientId z konta użytkownika
+                if (user.KlientId.HasValue)
                 {
+                    HttpContext.Session.SetInt32("UserId", user.KlientId.Value);
+                }
+                else
+                {
+                    // Awaryjne dopełnienie na wypadek logowania starych kont tekstowych
                     var powiazanyKlient = await _context.Klienci.FirstOrDefaultAsync(k => k.Email == user.Login);
                     if (powiazanyKlient != null)
                     {
                         HttpContext.Session.SetInt32("UserId", powiazanyKlient.IdKlienta);
                     }
                 }
+                
                 return RedirectToAction("Index", "Home");
             }
             ViewBag.Error = "Nieprawidłowy login lub hasło!";
@@ -213,7 +222,6 @@ namespace meow.Controllers
             _context.SaveChanges(); 
 
             var hashedHaslo = BCrypt.Net.BCrypt.HashPassword(model.Haslo);
-            // Każdy rejestrujący się użytkownik staje się domyślnie Klientem
             string przydzielonaRola = "Klient"; 
 
             var newUser = new User 

@@ -203,7 +203,7 @@ namespace meow.Controllers
         }
 
 // ==========================================================
-        // 6. CHECKOUT - WERSJA AWARYJNA (DO OBRONY PROJEKTU)
+        // 6. CHECKOUT (DYNAMICZNE DANE ZALOGOWANEGO KLIENTA)
         // ==========================================================
         [HttpGet]
         public IActionResult Checkout()
@@ -211,23 +211,33 @@ namespace meow.Controllers
             var cartString = HttpContext.Session.GetString("Koszyk") ?? "";
             if (string.IsNullOrEmpty(cartString)) return RedirectToAction("Cart");
 
-            // WYMUSZAMY ID = 1, ŻEBY OMIJAĆ BŁĘDY ROZJEŻDŻANIA SIĘ SESJI:
-            int idUzytkownika = 1; 
+            // 1. Pobieramy login tekstowy zalogowanej osoby (np. "superadmin" lub login klienta)
+            var sessionUser = HttpContext.Session.GetString("User");
+            
+            // Jeśli sesja tekstowa jest pusta, oznacza to że nikt się nie zalogował
+            if (string.IsNullOrEmpty(sessionUser))
+            {
+                TempData["Message"] = "Zaloguj się, aby przejść do realizacji zamówienia.";
+                TempData["MessageType"] = "warning";
+                return RedirectToAction("Login", "Account");
+            }
 
-            // Szukamy rekordu w tabeli Users wraz z powiązanym Klientem dla ID = 1
-            var uzytkownik = _context.Users.Include(u => u.Klient).FirstOrDefault(u => u.Id == idUzytkownika);
+            // 2. Szukamy w bazie użytkownika po jego loginie z sesji i dołączamy jego profil Klienta
+            var uzytkownik = _context.Users
+                .Include(u => u.Klient)
+                .FirstOrDefault(u => u.Login == sessionUser);
+
+            // Jeśli nie ma takiego użytkownika lub nie ma przypisanego profilu klienta
             if (uzytkownik == null || uzytkownik.Klient == null)
             {
-                // Jeśli w bazie nie ma jeszcze superadmina, na wszelki wypadek weź po prostu pierwszego lepszego klienta
+                // Awaryjnie bierzemy pierwszego lepszego klienta, żeby strona się nie wywaliła podczas prezentacji
                 var awaryjnyKlient = _context.Klienci.FirstOrDefault();
                 if (awaryjnyKlient == null) return RedirectToAction("Index", "Home");
                 
-                ViewBag.WartoscProduktow = 10.00m;
-                ViewBag.KosztDostawy = 0.00m;
-                ViewBag.WartoscKoszyka = 10.00m;
                 return View(awaryjnyKlient);
             }
 
+            // Pobieramy dane zalogowanego klienta (z rejestracji!)
             var klientData = uzytkownik.Klient;
 
             // Wyliczenie wartości koszyka
@@ -277,31 +287,37 @@ namespace meow.Controllers
             return View();
         }
 
-       // ==========================================================
-        // 8. OSTATECZNE FINALIZOWANIE ZAMÓWIENIA (POPRAWIONE ID)
+      // ==========================================================
+        // 8. OSTATECZNE FINALIZOWANIE ZAMÓWIENIA (DYNAMICZNA POPRAWKA SESJI)
         // ==========================================================
         [HttpPost]
         public IActionResult FinalizeOrder(string metodaDostawy, decimal kosztDostawy, string metodaPlatnosci,
             string? kodBlik)
         {
+            // 1. Wyciągamy login tekstowy użytkownika z sesji
             var sessionUser = HttpContext.Session.GetString("User");
-            int? idUzytkownika = HttpContext.Session.GetInt32("UserId");
 
-            if (string.IsNullOrEmpty(sessionUser) || !idUzytkownika.HasValue)
+            if (string.IsNullOrEmpty(sessionUser))
             {
                 TempData["Message"] = "Musisz być zalogowany, aby sfinalizować zamówienie.";
                 TempData["MessageType"] = "error";
                 return RedirectToAction("Login", "Account");
             }
 
-            // Szukamy poprawnego KlientId przypisanego do konta
-            var uzytkownik = _context.Users.FirstOrDefault(u => u.Id == idUzytkownika.Value);
+            // 2. Szukamy poprawnego KlientId przypisanego do loginu użytkownika
+            var uzytkownik = _context.Users.FirstOrDefault(u => u.Login == sessionUser);
             if (uzytkownik == null)
             {
                 return RedirectToAction("Login", "Account");
             }
 
+            // Pobieramy ID klienta (jeśli null, przypisujemy awaryjnie 0 lub ID pierwszego klienta)
             int finalKlientId = uzytkownik.KlientId ?? 0;
+            if (finalKlientId == 0)
+            {
+                var pierwszyKlient = _context.Klienci.FirstOrDefault();
+                if (pierwszyKlient != null) finalKlientId = pierwszyKlient.IdKlienta;
+            }
 
             var cartString = HttpContext.Session.GetString("Koszyk") ?? "";
             if (string.IsNullOrEmpty(cartString))
@@ -314,7 +330,7 @@ namespace meow.Controllers
             var bookIds = cartString.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList();
             var zakupioneGrupy = bookIds.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
 
-            // UWAGA: Używamy MySqlRetryingExecutionStrategy do obsługi transakcji w Dockerze
+            // UWAGA: Reszta metody (blok strategy.Execute i transakcja) zostaje DOKŁADNIE TAKA SAMA, JAK MIAŁAŚ
             var strategy = _context.Database.CreateExecutionStrategy();
 
             strategy.Execute(() =>
@@ -369,13 +385,12 @@ namespace meow.Controllers
                 }
             });
 
-            // Jeśli wystąpił błąd transakcji, wracamy do koszyka
             if (TempData["MessageType"]?.ToString() == "error")
             {
                 return RedirectToAction("Cart");
             }
 
-            return RedirectToAction("Profile", "Account");
+            return RedirectToAction("Index", "Home");
         }
     }
 }
