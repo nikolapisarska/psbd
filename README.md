@@ -32,6 +32,7 @@ Krok 5: Otwarcie aplikacji w przeglądarce
 Otwórz dowolną przeglądarkę internetową i przejdź pod dedykowany adres internetowy (port 8000 został
 dobrany tak, aby nie powodować konfliktów z systemową usługą AirPlay na komputerach Mac):
 http://localhost:8000
+
 Krok 6: Dane logowania administratora
 W systemie zaimplementowano mechanizm automatycznego seedowania konta administratora przy
 pierwszym uruchomieniu bazy danych. Zaloguj się w prawym górnym rogu na dedykowane konto
