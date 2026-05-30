@@ -14,11 +14,16 @@ Krok 3: Czyszczenie środowiska (opcjonalnie, zalecane przy błędach)
 Jeśli w systemie znajdują się stare lub zawieszone kontenery, wykonaj twarde czyszczenie pamięci
 podręcznej i wolumenów:
 
-```bash docker-compose down --volumes --remove-orphans```
+```bash
+docker-compose down --volumes --remove-orphans
+```
+
 
 Krok 4: Uruchomienie kontenerów
 Wpisz komendę, która wymusi pobranie obrazów, kompilację kodu C# i start całego systemu:
+```bash
 docker-compose up --build
+```
 Poczekaj, aż w oknie konsoli przestaną lecieć logi startowe, Entity Framework Core automatycznie zaaplikuje
 wszystkie zaległe migracje bazodanowe i pojawi się zielona ikona oraz komunikat sygnalizacyjny:
 🐾 Baza danych gotowa.
