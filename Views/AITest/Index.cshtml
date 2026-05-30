@@ -1,0 +1,15 @@
+@{ ViewBag.Title = "AI Test"; }
+
+<h2>Test AI Asystenta</h2>
+
+<form action="/AITest/Ask" method="post">
+    <textarea name="prompt" rows="3" cols="50" placeholder="Zadaj pytanie...">@ViewBag.LastPrompt</textarea>
+    <br />
+    <button type="submit">Wyślij do Mistral</button>
+</form>
+
+<hr/>
+<h3>Odpowiedź AI:</h3>
+<div style="border: 1px solid #ccc; padding: 10px;">
+    @ViewBag.AIResponse
+</div>

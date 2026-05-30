@@ -29,7 +29,7 @@ namespace meow.Models
                 .Property(p => p.Kwota)
                 .HasPrecision(18, 2);
 
-            // Twoje dotychczasowe zabezpieczenia relacji
+         //zabezpieczenia relacji
             modelBuilder.Entity<Wypozyczenie>()
                 .HasOne(w => w.Book)
                 .WithMany()
