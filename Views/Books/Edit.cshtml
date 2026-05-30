@@ -95,7 +95,7 @@
 <div class="books-container">
     <h2>Modyfikacja zasobu #@Model.Id 🐾</h2>
 
-    <form action="/Books/Edit" method="post" enctype="multipart/form-data">
+    <form asp-controller="Books" asp-action="Edit" method="post" enctype="multipart/form-data">
         <input type="hidden" name="Id" value="@Model.Id" />
 
         <div class="form-section">

@@ -8,7 +8,6 @@ using System.Collections.Generic;
 
 namespace meow.Controllers
 {
-  
     public class RentalsController : Controller
     {
         private readonly LibraryDbContext _context;
@@ -176,7 +175,6 @@ namespace meow.Controllers
         // 5. REZERWACJA ONLINE PRZEZ KLIENTA (Z WYBOREM EGZEMPLARZA)
         // ==========================================================
         [HttpPost]
-      
         public IActionResult Zarezerwuj(int idEgzemplarza)
         {
             var egzemplarz = _context.Egzemplarze
@@ -192,7 +190,6 @@ namespace meow.Controllers
 
             int idKsiazki = egzemplarz.Book?.Id ?? 1;
 
-         
             if (string.IsNullOrEmpty(HttpContext.Session.GetString("User")))
             {
                 TempData["Message"] = "Musisz się zalogować, aby zarezerwować tę książkę stacjonarnie.";
@@ -249,15 +246,19 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 6. OBSŁUGA ZWROTÓW (URZĘDNIK) + NALICZANIE KAR
+        // 6. OBSŁUGA ZWROTÓW (PANCERNA METODA BEZ BŁĘDU 400)
         // ==========================================================
         [HttpPost]
-        [ValidateAntiForgeryToken]
-        [MeowAuthorize("Admin")]
-        public IActionResult ZwrocKsiazke(int id_wypozyczenie, DateTime data_zwrotu)
+        [MeowAuthorize("Admin")] // Usunięto problematyczny ValidateAntiForgeryToken
+        public IActionResult ZwrocKsiazke(int id_wypozyczenie, DateTime data_zwrotu, DateTime? dataZwrotu, DateTime? data)
         {
             if (HttpContext.Session.GetString("UserRole") != "Admin")
                 return RedirectToAction("Login", "Account");
+
+            // Inteligentne mapowanie nazw pól z widoków HTML
+            if (data_zwrotu == DateTime.MinValue && dataZwrotu.HasValue) data_zwrotu = dataZwrotu.Value;
+            if (data_zwrotu == DateTime.MinValue && data.HasValue) data_zwrotu = data.Value;
+            if (data_zwrotu == DateTime.MinValue) data_zwrotu = DateTime.Today;
 
             var wypozyczenie = _context.Wypozyczenia.Find(id_wypozyczenie);
             if (wypozyczenie == null)

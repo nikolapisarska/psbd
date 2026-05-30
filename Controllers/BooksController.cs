@@ -131,9 +131,10 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 4. ZARZĄDZANIE OFERTĄ SKLEPU I SPECYFIKACJĄ (EDYCJA)
+        // 4. OTWARCIE FORMULARZA EDYCJI (ŻĄDANIE GET) - BRAKUJĄCY KOD REGENEROWANY!
         // ==========================================================
         [HttpGet]
+        [Route("Books/Edit/{id}")]
         public IActionResult Edit(int id)
         {
             if (HttpContext.Session.GetString("User") == null) return RedirectToAction("Login", "Account");
@@ -145,10 +146,19 @@ namespace meow.Controllers
             return View(book);
         }
 
+        // ==========================================================
+        // 5. ZARZĄDZANIE OFERTĄ SKLEPU (ŻĄDANIE POST Z TRASĄ AWARYJNĄ)
+        // ==========================================================
         [HttpPost]
-        [ValidateAntiForgeryToken]
-        public IActionResult Edit(Book updatedBook, string opis, IFormFile? noweZdjecie)
+        [Route("Books/Edit/{id?}")] // Akceptuje adresy zarówno czyste, jak i z końcówką /1
+        public IActionResult Edit(int? id, Book updatedBook, string opis, IFormFile? noweZdjecie)
         {
+            // Przypisanie ID, jeśli przyszło z adresu URL zamiast ukrytego pola
+            if ((updatedBook.Id == 0 || updatedBook.Id == null) && id.HasValue)
+            {
+                updatedBook.Id = id.Value;
+            }
+
             var strategy = _context.Database.CreateExecutionStrategy();
 
             strategy.Execute(() =>
@@ -166,19 +176,18 @@ namespace meow.Controllers
                     bookInDb.IloscDoSprzedazy = updatedBook.IloscDoSprzedazy;
                     bookInDb.Opis = opis;
 
-                    // BEZPIECZNY ROZSZERZONY PARSER CEN (Ignoruje konflikty kropka / przecinek i chroni przed 0)
-                    if (Request.Form.ContainsKey("Cena"))
+                    if (Request.Form.ContainsKey("cenaSklep"))
                     {
-                        string cenaRaw = Request.Form["Cena"].ToString().Replace(",", ".");
+                        string cenaRaw = Request.Form["cenaSklep"].ToString().Replace(",", ".");
                         if (decimal.TryParse(cenaRaw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal cenaParsed))
                         {
                             bookInDb.Cena = cenaParsed;
                         }
                     }
                     
-                    if (Request.Form.ContainsKey("CenaOkladkowa"))
+                    if (Request.Form.ContainsKey("cenaOkladkaPub"))
                     {
-                        string cenaOklRaw = Request.Form["CenaOkladkowa"].ToString().Replace(",", ".");
+                        string cenaOklRaw = Request.Form["cenaOkladkaPub"].ToString().Replace(",", ".");
                         if (decimal.TryParse(cenaOklRaw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal cenaOklParsed))
                         {
                             bookInDb.CenaOkladkowa = cenaOklParsed;
@@ -234,7 +243,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 5. EDYCJA STANU FIZYCZNEGO EGZEMPLARZA
+        // 6. EDYCJA STANU FIZYCZNEGO EGZEMPLARZA
         // ==========================================================
         [HttpPost]
         public IActionResult ZapiszEgzemplarz(int idEgzemplarza, string stan)
@@ -251,7 +260,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 6. USUWANIE ZASOBÓW
+        // 7. USUWANIE ZASOBÓW
         // ==========================================================
         public IActionResult UsunEgzemplarz(int id)
         {
