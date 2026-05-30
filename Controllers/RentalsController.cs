@@ -66,7 +66,7 @@ namespace meow.Controllers
                 return RedirectToAction("Create");
             }
 
-            DateTime dataPlanowana = data_wypozyczenia.AddDays(14);
+            DateTime dataPlanowana = data_wypozyczenia.AddDays(30);
 
             var wypozyczenie = new Wypozyczenie
             {
@@ -249,7 +249,7 @@ namespace meow.Controllers
         // 6. OBSŁUGA ZWROTÓW (PANCERNA METODA BEZ BŁĘDU 400)
         // ==========================================================
         [HttpPost]
-        [MeowAuthorize("Admin")] // Usunięto problematyczny ValidateAntiForgeryToken
+        [MeowAuthorize("Admin")] 
         public IActionResult ZwrocKsiazke(int id_wypozyczenie, DateTime data_zwrotu, DateTime? dataZwrotu, DateTime? data)
         {
             if (HttpContext.Session.GetString("UserRole") != "Admin")

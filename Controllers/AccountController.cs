@@ -69,7 +69,7 @@ namespace meow.Controllers
             var suroweWypozyczenia = _context.Wypozyczenia
                 .Include(w => w.Egzemplarz).ThenInclude(e => e!.Book)
                 .Where(w => w.IdKlient == klient.IdKlienta && w.IdEgzemplarz != null)
-                .ToList(); // Najpierw pobieramy dane z MySQL, żeby uniknąć błędu rzutowania dat
+                .ToList(); 
 
             var zmapowaneWypozyczenia = suroweWypozyczenia.Select(w => new RentalHistoryItem
             {
@@ -88,7 +88,7 @@ namespace meow.Controllers
             var model = new ProfileViewModel
             {
                 CustomerName = $"{klient.Imie} {klient.Nazwisko}",
-                Rentals = zmapowaneWypozyczenia, // Przekazujemy bezpiecznie zmapowaną listę
+                Rentals = zmapowaneWypozyczenia,
 
                 // --- SEKCJA ZAMÓWIEŃ Z PEŁNYM DOSTĘPEM DO SZCZEGÓŁÓW ---
                 Packages = _context.Zamowienia

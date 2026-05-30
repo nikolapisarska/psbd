@@ -131,7 +131,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 4. OTWARCIE FORMULARZA EDYCJI (ŻĄDANIE GET) - BRAKUJĄCY KOD REGENEROWANY!
+        // 4. OTWARCIE FORMULARZA EDYCJI (ŻĄDANIE GET)
         // ==========================================================
         [HttpGet]
         [Route("Books/Edit/{id}")]
@@ -147,13 +147,12 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 5. ZARZĄDZANIE OFERTĄ SKLEPU (ŻĄDANIE POST Z TRASĄ AWARYJNĄ)
+        // 5. ZARZĄDZANIE OFERTĄ I EDYCJĄ ILOŚCI SZTUK (ŻĄDANIE POST)
         // ==========================================================
         [HttpPost]
-        [Route("Books/Edit/{id?}")] // Akceptuje adresy zarówno czyste, jak i z końcówką /1
-        public IActionResult Edit(int? id, Book updatedBook, string opis, IFormFile? noweZdjecie)
+        [Route("Books/Edit/{id?}")]
+        public IActionResult Edit(int? id, Book updatedBook, string opis, IFormFile? noweZdjecie, int iloscBibliotekaNowa)
         {
-            // Przypisanie ID, jeśli przyszło z adresu URL zamiast ukrytego pola
             if ((updatedBook.Id == 0 || updatedBook.Id == null) && id.HasValue)
             {
                 updatedBook.Id = id.Value;
@@ -166,7 +165,7 @@ namespace meow.Controllers
                 using var transaction = _context.Database.BeginTransaction();
                 try
                 {
-                    var bookInDb = _context.Books.FirstOrDefault(b => b.Id == updatedBook.Id);
+                    var bookInDb = _context.Books.Include(b => b.Egzemplarze).FirstOrDefault(b => b.Id == updatedBook.Id);
                     if (bookInDb == null) return;
 
                     bookInDb.Tytul = updatedBook.Tytul;
@@ -176,6 +175,7 @@ namespace meow.Controllers
                     bookInDb.IloscDoSprzedazy = updatedBook.IloscDoSprzedazy;
                     bookInDb.Opis = opis;
 
+                    // Parser cen detalicznych i okładkowych
                     if (Request.Form.ContainsKey("cenaSklep"))
                     {
                         string cenaRaw = Request.Form["cenaSklep"].ToString().Replace(",", ".");
@@ -194,12 +194,56 @@ namespace meow.Controllers
                         }
                     }
 
+                    // --- INTELIGENTNA SYNCHRONIZACJA EGZEMPLARZY BIBLIOTEKI ---
+                    int aktualnaIlosc = bookInDb.Egzemplarze.Count;
+
+                    if (iloscBibliotekaNowa > aktualnaIlosc)
+                    {
+                
+                        int ileDodac = iloscBibliotekaNowa - aktualnaIlosc;
+                        for (int i = 0; i < ileDodac; i++)
+                        {
+                            string nrInw = $"INV-{DateTime.Now.Year}-{bookInDb.Id}-{Guid.NewGuid().ToString().Substring(0, 5).ToUpper()}";
+                            var nowyEgz = new Egzemplarz
+                            {
+                                IdKsiazka = bookInDb.Id,
+                                NumerInwentarzowy = nrInw,
+                                Stan = "idealny"
+                            };
+                            _context.Egzemplarze.Add(nowyEgz);
+                        }
+                        bookInDb.IloscEgzemplarzy = iloscBibliotekaNowa;
+                    }
+                    else if (iloscBibliotekaNowa < aktualnaIlosc)
+                    {
+                        // Zmniejszamy ilość: usuwamy tylko WOLNE sztuki
+                        int ileUsunac = aktualnaIlosc - iloscBibliotekaNowa;
+                        
+                        var wypozyczoneEgzemplarzeIds = _context.Wypozyczenia
+                            .Where(w => w.DataZwrotu == null && w.IdEgzemplarz != null)
+                            .Select(w => w.IdEgzemplarz)
+                            .ToList();
+
+                        var wolneEgzemplarze = bookInDb.Egzemplarze
+                            .Where(e => !wypozyczoneEgzemplarzeIds.Contains(e.IdEgzemplarza))
+                            .Take(ileUsunac)
+                            .ToList();
+
+                        foreach (var egzDoUsuniecia in wolneEgzemplarze)
+                        {
+                            _context.Egzemplarze.Remove(egzDoUsuniecia);
+                        }
+
+                        _context.SaveChanges();
+                        // Przypisujemy realny stan po usunięciu (na wypadek gdyby zabrakło wolnych sztuk do usunięcia)
+                        bookInDb.IloscEgzemplarzy = _context.Egzemplarze.Count(e => e.IdKsiazka == bookInDb.Id);
+                    }
+
                     bookInDb.Wydawnictwo = updatedBook.Wydawnictwo;
                     bookInDb.LiczbaStron = updatedBook.LiczbaStron;
                     bookInDb.OkladkaTyp = updatedBook.OkladkaTyp;
                     bookInDb.Tlumaczenie = updatedBook.Tlumaczenie;
                     bookInDb.EAN = updatedBook.EAN;
-                    
                     bookInDb.TytulOryginalny = updatedBook.TytulOryginalny;
                     bookInDb.Seria = updatedBook.Seria;
                     bookInDb.JezykWydania = updatedBook.JezykWydania;
@@ -228,7 +272,7 @@ namespace meow.Controllers
                     _context.SaveChanges();
                     transaction.Commit();
                     
-                    TempData["Message"] = $"Zaktualizowano parametry oferty dla '{bookInDb.Tytul}'! 🐾";
+                    TempData["Message"] = $"Zaktualizowano parametry oferty i zasobów bibliotecznych dla '{bookInDb.Tytul}'! 🐾";
                     TempData["MessageType"] = "success";
                 }
                 catch (Exception ex)
@@ -243,7 +287,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 6. EDYCJA STANU FIZYCZNEGO EGZEMPLARZA
+        // 6. EDYCJA STANU FIZYCZNEGE EGZEMPLARZA
         // ==========================================================
         [HttpPost]
         public IActionResult ZapiszEgzemplarz(int idEgzemplarza, string stan)
@@ -314,6 +358,75 @@ namespace meow.Controllers
                 {
                     transaction.Rollback();
                     TempData["Message"] = "Błąd podczas usuwania: " + ex.Message;
+                    TempData["MessageType"] = "error";
+                }
+            });
+
+            return RedirectToAction("Index");
+        }
+        // ==========================================================
+        // 8. CAŁKOWITE USUWANIE KSIĄŻKI ZE SKLEPU I BIBLIOTEKI
+        // ==========================================================
+        [HttpPost]
+        [MeowAuthorize("Admin")]
+        public IActionResult UsunKsiazkeCalkowicie(int id)
+        {
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            strategy.Execute(() =>
+            {
+                using var transaction = _context.Database.BeginTransaction();
+                try
+                {
+                    var ksiazka = _context.Books.Include(b => b.Egzemplarze).FirstOrDefault(b => b.Id == id);
+                    if (ksiazka == null) return;
+
+                    // 1. Sprawdzamy, czy jakikolwiek egzemplarz tej książki jest obecnie wypożyczony
+                    if (ksiazka.Egzemplarze != null && ksiazka.Egzemplarze.Any())
+                    {
+                        var egzemplarzeIds = ksiazka.Egzemplarze.Select(e => e.IdEgzemplarza).ToList();
+                        bool czyWypozyczona = _context.Wypozyczenia.Any(w => egzemplarzeIds.Contains(w.IdEgzemplarz ?? 0) && w.DataZwrotu == null);
+
+                        if (czyWypozyczona)
+                        {
+                            TempData["Message"] = "Błąd: Nie można usunąć książki! Jeden z jej egzemplarzy jest obecnie wypożyczony przez klienta.";
+                            TempData["MessageType"] = "error";
+                            return;
+                        }
+
+                        // 2. Czyszczenie historii starych zwrotów/płatności dla egzemplarzy tej książki, aby MySQL pozwolił na usunięcie
+                        foreach (var egz in ksiazka.Egzemplarze)
+                        {
+                            var powiazaneWypozyczenia = _context.Wypozyczenia.Where(w => w.IdEgzemplarz == egz.IdEgzemplarza).ToList();
+                            foreach (var w in powiazaneWypozyczenia)
+                            {
+                                var platnosci = _context.Platnosci.Where(p => p.IdWypozyczenie == w.IdWypozyczenie);
+                                _context.Platnosci.RemoveRange(platnosci);
+                            }
+                            _context.Wypozyczenia.RemoveRange(powiazaneWypozyczenia);
+                        }
+
+                        // 3. Usuwamy fizyczne egzemplarze
+                        _context.Egzemplarze.RemoveRange(ksiazka.Egzemplarze);
+                    }
+
+                    // 4. Usuwamy stare zamówienia sklepowe powiązane z tą książką (archiwalne)
+                    var powiazaneZamowieniaSklepowe = _context.Zamowienia.Where(z => z.IdKsiazki == id).ToList();
+                    _context.Zamowienia.RemoveRange(powiazaneZamowieniaSklepowe);
+
+                    // 5. Na koniec usuwamy samą książkę z katalogu
+                    _context.Books.Remove(ksiazka);
+                    
+                    _context.SaveChanges();
+                    transaction.Commit();
+
+                    TempData["Message"] = $"🐾 Sukces! Książka „{ksiazka.Tytul}” została całkowicie usunięta z systemu meow.";
+                    TempData["MessageType"] = "success";
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    TempData["Message"] = "Błąd podczas całkowitego usuwania: " + ex.Message;
                     TempData["MessageType"] = "error";
                 }
             });

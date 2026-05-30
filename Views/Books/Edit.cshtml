@@ -150,7 +150,10 @@
 
         <div class="form-section shop-section">
             <h3>🛒 Zarządzanie sprzedażą</h3>
-            
+            <div class="form-group">
+                <label>Ilość egzemplarzy w bibliotece stacjonarnej (Wypożyczalnia)</label>
+                <input type="number" name="IloscBiblioteka Nowa" class="form-control" value="@Model.IloscEgzemplarzy" min="0" required>
+            </div>
             <div class="form-group">
                 <label>Cena okładkowa / sugerowana wydawcy (PLN)</label>
                 <input type="text" name="cenaOkladkaPub" class="form-control" 

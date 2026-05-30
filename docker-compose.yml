@@ -29,6 +29,8 @@ services:
       - ConnectionStrings__DefaultConnection=server=meow_db;port=3306;database=wypozyczalnia_ksiazek;user=root;password=rootpassword;
     volumes:
       - ./data-protection-keys:/root/.aspnet/DataProtection-Keys
+    
+      - ./wwwroot/images:/app/wwwroot/images
     depends_on:
       - meow_db
     networks:
