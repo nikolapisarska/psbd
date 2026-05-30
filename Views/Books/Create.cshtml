@@ -77,10 +77,12 @@
 </style>
 
 <div class="books-container">
-    <h2>Dodaj nową książkę / produkt do </h2>
+    <h2>Dodaj nową książkę / produkt do systemu</h2>
 
     <form action="/Books/Create" method="post" enctype="multipart/form-data">
-        
+        @* 1. DODANO TOKEN PRZECIWKO FAŁSZOWANIU ŻĄDAŃ (WYMAGANY PRZEZ KONTROLER) *@
+        @Html.AntiForgeryToken()
+
         <div class="form-section">
             <h3>📖 Informacje ogólne</h3>
             <div class="form-group">
@@ -91,7 +93,7 @@
                 <label>Autor / Twórca</label>
                 <input type="text" name="autor" class="form-control" required placeholder="np. Andrzej Sapkowski">
             </div>
-            
+
             <div class="form-group">
                 <label>Opis / streszczenie utworu (a'la Empik)</label>
                 <textarea name="opis" class="form-control" rows="5" placeholder="Wklej bogaty opis książki, który wyświetli się na karcie produktu klienta..."></textarea>
@@ -106,7 +108,7 @@
                 <label>Kategoria literacka</label>
                 <select name="gatunek" class="form-control" required>
                     <option value="" disabled selected>-- Wybierz kategorię z listy --</option>
-                    
+
                     <optgroup label="Polecane">
                         <option value="Biografia">Biografie</option>
                         <option value="Biznes">Biznes</option>
@@ -149,7 +151,7 @@
                     </optgroup>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label>Rok wydania</label>
                 <input type="number" name="rokWydania" class="form-control" value="2026" min="1000" max="2026">
@@ -233,7 +235,7 @@
 
         <div class="form-section shop-section">
             <h3 style="color:#e67e22;">🛒 Moduł Sklepu (Sprzedaż)</h3>
-            
+
             <div class="form-group">
                 <label>Cena okładkowa / sugerowana wydawcy (PLN)</label>
                 <input type="number" name="cenaOkladkowa" step="0.01" min="0" class="form-control" placeholder="np. 59.99">
@@ -246,7 +248,8 @@
 
             <div class="form-group">
                 <label>Ilość sztuk na magazynie sklepu</label>
-                <input type="number" name="iloscDoSprzedazy" class="form-control" min="0" value="0" required>
+                @* 2. ZMIENIONO NAZWĘ Z iloscDoSprzedazy NA ilosc, ŻEBY IDEALNIE PASOWAŁO DO PARAMETRU W KONTROLERZE *@
+                <input type="number" name="IloscDoSprzedazy" class="form-control" min="0" value="0" required>
             </div>
         </div>
 

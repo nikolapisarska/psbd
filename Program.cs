@@ -2,30 +2,39 @@
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Połączenie z bazą danych MySQL
+// ==========================================================
+// 1. POŁĄCZENIE Z BAZĄ DANYCH MYSQL
+// ==========================================================
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
                        ?? "server=meow_db;port=3306;database=wypozyczalnia_ksiazek;user=root;password=rootpassword;";
 builder.Services.AddDbContext<meow.Models.LibraryDbContext>(options =>
     options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 30)), 
         mySqlOptions => mySqlOptions.EnableRetryOnFailure()));
 
-// 2. Rejestracja usług systemowych
+// ==========================================================
+// 2. REJESTRACJA USŁUG SYSTEMOWYCH
+// ==========================================================
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddSession(options => {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
+    // Zabezpieczenie przed blokowaniem ciasteczek sesji w środowisku Docker (HTTP Localhost)
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
 
 var app = builder.Build();
 
-// 3. Inicjalizacja bazy danych i tworzenie konta administratora
+// ==========================================================
+// 3. INICJALIZACJA BAZY DANYCH I TWORZENIE KONTA ADMINISTRATORA
+// ==========================================================
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<meow.Models.LibraryDbContext>();
     
-    // Upewnij się, że baza jest stworzona i ma tabele
+    // Upewnij się, że baza jest stworzona i ma aktualne tabele
     if (context.Database.GetPendingMigrations().Any())
     {
         context.Database.Migrate();
@@ -36,8 +45,6 @@ using (var scope = app.Services.CreateScope())
     }
     Console.WriteLine("🐾 Baza danych gotowa.");
 
-    // Automatycznie dodajemy poprawnego Admina, jeśli nie istnieje w tabeli
-    // Automatycznie dodajemy poprawnego Admina, jeśli nie istnieje w tabeli
     // Automatycznie dodajemy poprawnego Admina, jeśli nie istnieje w tabeli
     if (!context.Users.Any(u => u.Rola == "Admin"))
     {
@@ -56,7 +63,7 @@ using (var scope = app.Services.CreateScope())
         var systemAdmin = new meow.Models.User
         {
             Login = "superadmin",
-            Haslo = BCrypt.Net.BCrypt.HashPassword("admin123"), // <-- TA LINIJKA ZOSTAŁA POPRAWIONA!
+            Haslo = BCrypt.Net.BCrypt.HashPassword("admin123"),
             Rola = "Admin",
             KlientId = adminKlient.IdKlienta 
         };
@@ -66,11 +73,14 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 4. Konfiguracja potoku żądań HTTP
+// ==========================================================
+// 4. KONFIGURACJA POTOKU ŻĄDAŃ HTTP (MIDDLEWARE PIPELINE)
+// ==========================================================
 app.UseStaticFiles();
 app.UseRouting();
-app.UseSession();
-app.UseAuthorization();
+
+app.UseSession();          // ładuje sesję (w tym koszyk i użytkownika)
+app.UseAuthorization();    // standardowe uprawnienia .NET
 
 app.MapControllerRoute(
     name: "default",
