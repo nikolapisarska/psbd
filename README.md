@@ -13,7 +13,8 @@ głównego projektu (tam gdzie znajduje się plik docker-compose.yml )
 Krok 3: Czyszczenie środowiska (opcjonalnie, zalecane przy błędach)
 Jeśli w systemie znajdują się stare lub zawieszone kontenery, wykonaj twarde czyszczenie pamięci
 podręcznej i wolumenów:
-docker-compose down --volumes --remove-orphans
+
+```bash docker-compose down --volumes --remove-orphans```
 
 Krok 4: Uruchomienie kontenerów
 Wpisz komendę, która wymusi pobranie obrazów, kompilację kodu C# i start całego systemu:
