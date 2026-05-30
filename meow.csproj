@@ -9,14 +9,13 @@
 
     <ItemGroup>
         <PackageReference Include="BCrypt.Net-Next" Version="4.2.1" />
+        <PackageReference Include="FastBertTokenizer" Version="1.0.28" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.26.0" />
         <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="Services\" />
+        <PackageReference Include="Qdrant.Client" Version="1.18.1" />
     </ItemGroup>
 
 </Project>

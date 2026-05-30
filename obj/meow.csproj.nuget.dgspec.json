@@ -48,6 +48,10 @@
               "target": "Package",
               "version": "[4.2.1, )"
             },
+            "FastBertTokenizer": {
+              "target": "Package",
+              "version": "[1.0.28, )"
+            },
             "Microsoft.EntityFrameworkCore": {
               "target": "Package",
               "version": "[9.0.0, )"
@@ -60,9 +64,17 @@
               "target": "Package",
               "version": "[9.0.0, )"
             },
+            "Microsoft.ML.OnnxRuntime": {
+              "target": "Package",
+              "version": "[1.26.0, )"
+            },
             "Pomelo.EntityFrameworkCore.MySql": {
               "target": "Package",
               "version": "[9.0.0, )"
+            },
+            "Qdrant.Client": {
+              "target": "Package",
+              "version": "[1.18.1, )"
             }
           },
           "imports": [
