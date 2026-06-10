@@ -137,7 +137,8 @@ namespace meow.Controllers
             var book = _context.Books.FirstOrDefault(b => b.Id == request.BookId);
             if (book == null || book.Cena == 0 || book.IloscDoSprzedazy <= 0)
             {
-                return Json(new { success = false, message = "Niestety, ten produkt nie jest obecnie dostępny w sprzedaży." });
+                return Json(new
+                    { success = false, message = "Niestety, ten produkt nie jest obecnie dostępny w sprzedaży." });
             }
 
             var cartString = HttpContext.Session.GetString("Koszyk") ?? "";
@@ -147,9 +148,11 @@ namespace meow.Controllers
 
             if (cartItems.Count(id => id == request.BookId) >= book.IloscDoSprzedazy)
             {
-                return Json(new { 
-                    success = false, 
-                    message = $"Osiągnięto limit! W magazynie meow mamy już tylko {book.IloscDoSprzedazy} szt. tego produktu." 
+                return Json(new
+                {
+                    success = false,
+                    message =
+                        $"Osiągnięto limit! W magazynie meow mamy już tylko {book.IloscDoSprzedazy} szt. tego produktu."
                 });
             }
 
@@ -157,10 +160,11 @@ namespace meow.Controllers
             HttpContext.Session.SetString("Koszyk", string.Join(",", cartItems));
 
             // Zwracamy obiekt JSON z nowym łącznym stanem koszyka (Punkt 17)
-            return Json(new { 
-                success = true, 
+            return Json(new
+            {
+                success = true,
                 message = $"Pomyślnie dodano „{book.Tytul}” do Twojego koszyka! 🐾",
-                totalItems = cartItems.Count 
+                totalItems = cartItems.Count
             });
         }
 
@@ -254,7 +258,7 @@ namespace meow.Controllers
 
             // 1. Pobieram login tekstowy zalogowanej osoby 
             var sessionUser = HttpContext.Session.GetString("User");
-            
+
             // Jeśli sesja tekstowa jest pusta, oznacza to że nikt się nie zalogował
             if (string.IsNullOrEmpty(sessionUser))
             {
@@ -274,7 +278,7 @@ namespace meow.Controllers
                 // Awaryjnie bierze pierwszego lepszego klienta, żeby strona się nie wywaliła podczas prezentacji
                 var awaryjnyKlient = _context.Klienci.FirstOrDefault();
                 if (awaryjnyKlient == null) return RedirectToAction("Index", "Home");
-                
+
                 return View(awaryjnyKlient);
             }
 
@@ -388,7 +392,8 @@ namespace meow.Controllers
                         {
                             if (ksiazka.IloscDoSprzedazy < kp.Value)
                             {
-                                throw new Exception($"Przepraszamy, produkt „{ksiazka.Tytul}” wyprzedał się w międzyczasie.");
+                                throw new Exception(
+                                    $"Przepraszamy, produkt „{ksiazka.Tytul}” wyprzedał się w międzyczasie.");
                             }
 
                             ksiazka.IloscDoSprzedazy -= kp.Value;
@@ -410,6 +415,56 @@ namespace meow.Controllers
 
                     _context.SaveChanges();
                     transaction.Commit();
+
+                    // --- REALIZACJA PUNKTU 13: MAILING ---
+                    try
+                    {
+                        // Pobranie maila klienta z bazy danych do wysyłki
+                        var daneKlienta = _context.Klienci.FirstOrDefault(k => k.IdKlienta == finalKlientId);
+                        string emailOdbiorcy = daneKlienta?.Email ?? "klient@meow-ksiegarnia.pl";
+
+                        // Symulacja / Przygotowanie wysyłki SMTP
+                        string temat = $"Potwierdzenie zamówienia {wspólnyNumerPaczki} 🐾";
+                        string trescMaila = $@"
+                            Cześć {daneKlienta?.Imie ?? "Kliencie"}!
+                            
+                            Dziękujemy za zakupy w e-księgarni meow! Twój koszyk został pomyślnie opłacony.
+                            
+                            Szczegóły Twojej paczki:
+                            - Numer śledzenia: {wspólnyNumerPaczki}
+                            - Status: W przygotowaniu
+                            
+                            Jak tylko przesyłka ruszy w drogę, poinformujemy Cię o tym.
+                            
+                            Mruczącego dnia,
+                            Zespół meow 🐾";
+
+                        // Zapis do pliku/logów udający wysyłkę SMTP (bezpieczne dla środowisk testowych i prezentacji projektu)
+                        string path = Path.Combine(AppContext.BaseDirectory, "sent_emails.txt");
+                        string logLogiki =
+                            $"\n--- WYSOŁANO E-MAIL STMP ---\nDo: {emailOdbiorcy}\nTemat: {temat}\nTreść:\n{trescMaila}\n-------------------------\n";
+                        System.IO.File.AppendAllText(path, logLogiki);
+
+                        /* * Opcjonalnie: Jeśli na prezentacji musisz pokazać prawdziwe SMTP, odkomentuj poniższy kod standardowy .NET:
+                         * * using (var message = new System.Net.Mail.MailMessage("no-reply@meow.pl", emailOdbiorcy))
+                         * {
+                         * message.Subject = temat;
+                         * message.Body = trescMaila;
+                         * using (var client = new System.Net.Mail.SmtpClient("smtp.mailtrap.io", 2525)) // Przykład użycia Mailtrap
+                         * {
+                         * client.Credentials = new System.Net.NetworkCredential("username", "password");
+                         * client.EnableSsl = true;
+                         * client.Send(message);
+                         * }
+                         * }
+                         */
+                    }
+                    catch (Exception)
+                    {
+                        // Błąd wysyłki maila nie powinien przerywać procesu pomyślnego zakupu, 
+                        // dlatego wyłapujemy go w osobnym bloku try-catch
+                    }
+                    // --- KONIEC PUNKTU 13 ---
 
                     HttpContext.Session.Remove("Koszyk");
                     HttpContext.Session.Remove("AdresDostawy");

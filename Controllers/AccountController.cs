@@ -7,6 +7,7 @@ using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using BCrypt.Net;
 
 namespace meow.Controllers
@@ -15,10 +16,13 @@ namespace meow.Controllers
     public class AccountController : Controller
     {
         private readonly LibraryDbContext _context;
+        private readonly ILogger<AccountController> _logger; // Systemowy Logger zdarzeń
 
-        public AccountController(LibraryDbContext context)
+        // Konstruktor realizujący wstrzykiwanie zależności (Dependency Injection)
+        public AccountController(LibraryDbContext context, ILogger<AccountController> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         // ==========================================================
@@ -27,7 +31,6 @@ namespace meow.Controllers
         [HttpGet]
         public IActionResult Profile()
         {
-            // 1. Pobieramy login tekstowy z sesji
             var userLogin = HttpContext.Session.GetString("User");
             var userRole = HttpContext.Session.GetString("UserRole");
 
@@ -42,7 +45,6 @@ namespace meow.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // 2. Szukamy użytkownika w bazie na podstawie loginu i dołączamy profil Klienta
             var userInDb = _context.Users.Include(u => u.Klient).FirstOrDefault(u => u.Login == userLogin);
             if (userInDb == null || userInDb.Klient == null)
             {
@@ -51,7 +53,6 @@ namespace meow.Controllers
 
             var klient = userInDb.Klient;
 
-            // 3. Pobranie i zmapowanie kar finansowych
             var nienaliczoneKary = _context.Platnosci
                 .Include(p => p.Wypozyczenie).ThenInclude(w => w!.Egzemplarz).ThenInclude(e => e!.Book)
                 .Where(p => p.Wypozyczenie != null && p.Wypozyczenie.IdKlient == klient.IdKlienta)
@@ -65,7 +66,6 @@ namespace meow.Controllers
                 DateGenerated = p.Wypozyczenie?.DataZwrotu?.ToString("yyyy-MM-dd") ?? DateTime.Now.ToString("yyyy-MM-dd")
             }).ToList();
 
-         
             var suroweWypozyczenia = _context.Wypozyczenia
                 .Include(w => w.Egzemplarz).ThenInclude(e => e!.Book)
                 .Where(w => w.IdKlient == klient.IdKlienta && w.IdEgzemplarz != null)
@@ -84,13 +84,11 @@ namespace meow.Controllers
                         : $"Zostało {(w.DataPlanowanegoZwrotu - DateTime.Today).Days} dni")
             }).ToList();
 
-            // 4. Budowanie pełnego modelu widoku profilu
             var model = new ProfileViewModel
             {
                 CustomerName = $"{klient.Imie} {klient.Nazwisko}",
                 Rentals = zmapowaneWypozyczenia,
 
-                // --- SEKCJA ZAMÓWIEŃ Z PEŁNYM DOSTĘPEM DO SZCZEGÓŁÓW ---
                 Packages = _context.Zamowienia
                     .Include(z => z.Book)
                     .Where(z => z.IdKlienta == klient.IdKlienta)
@@ -129,7 +127,6 @@ namespace meow.Controllers
                     .OrderByDescending(o => o.OrderDate)
                     .ToList(),
 
-                // --- SEKCJA KAR I PŁATNOŚCI ---
                 Fines = finesList,
                 TotalFinesAmount = finesList.Sum(f => f.Amount)
             };
@@ -141,27 +138,42 @@ namespace meow.Controllers
         // 2. LOGOWANIE (GET)
         // ==========================================================
         [HttpGet]
-        public IActionResult Login(string? returnUrl)
+        public IActionResult Login()
         {
-            ViewBag.ReturnUrl = returnUrl;
             return View();
         }
 
         // ==========================================================
-        // 3. LOGOWANIE (POST)
+        // 3. LOGOWANIE (POST) - POŁĄCZONA I ZABEZPIECZONA METODA ASYNCHRONICZNA
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken] 
-        public async Task<IActionResult> Login(string login, string haslo, string? returnUrl)
+        public async Task<IActionResult> Login(string login, string password)
         {
+            // Walidacja pustych pól formularza
+            if (string.IsNullOrEmpty(login) || string.IsNullOrEmpty(password))
+            {
+                TempData["Message"] = "Uzupełnij login i hasło.";
+                TempData["MessageType"] = "error";
+                return View();
+            }
+
+            // Asynchroniczne szukanie użytkownika w bazie danych wraz z profilem klienta
             var user = await _context.Users
                 .Include(u => u.Klient)
                 .FirstOrDefaultAsync(u => u.Login == login); 
 
-            if (user != null && BCrypt.Net.BCrypt.Verify(haslo, user.Haslo))
+            // Weryfikacja loginu oraz weryfikacja hasła kryptograficznego przy użyciu BCrypt
+            if (user != null && BCrypt.Net.BCrypt.Verify(password, user.Haslo))
             {
+                // --- PUNKT 19: LOGGER (SUKCES LOGOWANIA) ---
+                _logger.LogInformation("Użytkownik '{Login}' pomyślnie zalogował się do systemu. Rola: {Rola}. Adres IP: {IP}", 
+                    login, user.Rola ?? "Klient", HttpContext.Connection.RemoteIpAddress);
+
+                // Zapisywanie danych uwierzytelniających w sesji serwera
                 HttpContext.Session.SetString("User", user.Login ?? "Użytkownik");
-                HttpContext.Session.SetString("UserRole", user.Rola ?? "Klient");
+                HttpContext.Session.SetString("Role", user.Rola ?? "Klient");
+                HttpContext.Session.SetString("UserRole", user.Rola ?? "Klient"); // Dla kompatybilności z akcją Profile
 
                 if (user.KlientId.HasValue)
                 {
@@ -175,11 +187,23 @@ namespace meow.Controllers
                         HttpContext.Session.SetInt32("UserId", powiazanyKlient.IdKlienta);
                     }
                 }
+
+                TempData["Message"] = $"Witaj ponownie, {user.Login}! 🐾";
+                TempData["MessageType"] = "success";
                 
                 return RedirectToAction("Index", "Home");
             }
-            ViewBag.Error = "Nieprawidłowy login lub hasło!";
-            return View();
+            else
+            {
+                // --- PUNKT 19: LOGGER (OSTRZEŻENIE O ZŁYM LEŚNYM LOGOWANIU) ---
+                _logger.LogWarning("Nieudana próba logowania na konto '{Login}'. Podano błędne hasło lub użytkownik nie istnieje.", 
+                    login);
+
+                TempData["Message"] = "Nieprawidłowy login lub hasło.";
+                TempData["MessageType"] = "error";
+                ViewBag.Error = "Nieprawidłowy login lub hasło!";
+                return View();
+            }
         }
 
         // ==========================================================
