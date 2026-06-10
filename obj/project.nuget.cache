@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "bdXf8+XrIAU=",
+  "dgSpecHash": "AK7V2sfTPU8=",
   "success": true,
-  "projectFilePath": "/Users/nikolina/Desktop/meow/meow.csproj",
+  "projectFilePath": "/Users/nikolina/Desktop/meow-kopia/meow.csproj",
   "expectedPackageFiles": [
     "/Users/nikolina/.nuget/packages/bcrypt.net-next/4.2.1/bcrypt.net-next.4.2.1.nupkg.sha512",
     "/Users/nikolina/.nuget/packages/fastberttokenizer/1.0.28/fastberttokenizer.1.0.28.nupkg.sha512",

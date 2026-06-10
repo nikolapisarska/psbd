@@ -4,160 +4,46 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - meow</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
             background-color: #f4f6f9;
             color: #333;
         }
-        header {
+        .navbar-custom {
             background-color: #234465;
-            color: white;
-            padding: 15px 40px;
         }
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
+        .navbar-custom .navbar-brand, .navbar-custom .nav-link {
+            color: #ffffff;
         }
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            letter-spacing: 1px;
+        .navbar-custom .nav-link:hover {
+            color: #f1c40f;
         }
-        .search-container {
-            display: flex;
-            flex-grow: 0.5;
-            max-width: 600px;
-        }
-        .search-input {
-            width: 100%;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px 0 0 4px;
-            font-size: 14px;
-        }
-        .search-btn {
-            background-color: #1a3047;
-            color: white;
-            border: none;
-            padding: 0 20px;
-            border-radius: 0 4px 4px 0;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .search-btn:hover { background-color: #112031; }
-
-        nav {
-            display: flex;
-            gap: 25px;
-            align-items: center;
-            font-size: 15px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            padding-top: 10px;
-        }
-        nav a {
-            color: #e0e0e0;
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-        nav a:hover { color: white; }
-
         .cart-status {
             background-color: #e67e22;
             color: white;
-            padding: 5px 10px;
+            padding: 2px 8px;
             border-radius: 20px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
         }
-        .container {
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 0 20px;
+        /* Responsywne Mega Menu */
+        .mega-dropdown-menu {
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
         }
         footer {
             background-color: #234465;
             color: rgba(255,255,255,0.7);
-            text-align: center;
-            padding: 20px;
-            margin-top: 50px;
-            font-size: 14px;
-        }
-
-        /* --- STYLE DLA MEGA MENU --- */
-        .mega-dropdown {
-            position: relative;
-            display: inline-block;
-        }
-
-        .mega-dropdown-btn {
-            cursor: pointer;
-        }
-
-        .mega-dropdown-content {
-            display: none;
-            position: absolute;
-            left: 0;
-            top: 100%;
-            background-color: #ffffff;
-            min-width: 850px;
-            box-shadow: 0px 8px 24px rgba(0,0,0,0.15);
-            border-radius: 6px;
-            padding: 25px;
-            z-index: 1000;
-            margin-top: 10px;
-            gap: 40px;
-        }
-
-        .mega-dropdown:hover .mega-dropdown-content {
-            display: flex;
-        }
-
-        .mega-column {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .mega-column h3 {
-            font-size: 15px;
-            color: #234465;
-            margin: 0 0 10px 0;
-            font-weight: 700;
-            border-bottom: 1px solid #eef2f5;
-            padding-bottom: 5px;
-        }
-
-        .mega-column a {
-            color: #444444 !important;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: normal;
-            padding: 3px 0;
-            transition: color 0.15s, padding-left 0.15s;
-        }
-
-        .mega-column a:hover {
-            color: #e67e22 !important;
-            padding-left: 5px;
-        }
-
-        .mega-column a.highlight {
-            color: #e67e22 !important;
-            font-weight: 600;
-        }
-        .mega-column a.highlight:hover {
-            color: #d35400 !important;
         }
     </style>
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
 
 <header>
     @using Microsoft.AspNetCore.Http
@@ -165,144 +51,121 @@
     @{
         var sessionUser = HttpContextAccessor.HttpContext?.Session.GetString("User");
         var sessionRole = HttpContextAccessor.HttpContext?.Session.GetString("UserRole");
-
         var koszykString = HttpContextAccessor.HttpContext?.Session.GetString("Koszyk") ?? "";
-        int iloscWKoszyku = string.IsNullOrEmpty(koszykString) 
-            ? 0 
-            : koszykString.Split(',', StringSplitOptions.RemoveEmptyEntries).Length;
-            
-   
+        int iloscWKoszyku = string.IsNullOrEmpty(koszykString) ? 0 : koszykString.Split(',', StringSplitOptions.RemoveEmptyEntries).Length;
         var sessionAuthError = HttpContextAccessor.HttpContext?.Session.GetString("MeowAuthError");
     }
 
-    <div class="header-top">
-        @if (sessionRole == "Admin")
-        {
-            <a href="/" class="logo" style="text-decoration: none; color: white;"> PANEL KONTROLI 🐾</a>
-        }
-        else
-        {
-            <a href="/Shop" class="logo" style="text-decoration: none; color: white;"> E-Księgarnia 🐾</a>
-        }
-
-        @if (sessionRole != "Admin")
-        {
-            <form action="/Shop" method="get" class="search-container">
-                <input type="text" 
-                       name="fraza" 
-                       value="@ViewBag.WybranaFraza" 
-                       class="search-input" 
-                       placeholder="Wpisz tytuł lub autora ... 🐾">
-               
-                @if (!string.IsNullOrEmpty(ViewBag.AktualnyGatunek))
-                {
-                    <input type="hidden" name="gatunek" value="@ViewBag.AktualnyGatunek" />
-                }
-        
-                <button type="submit" class="search-btn">SZUKAJ</button>
-            </form>
-        }
-        else
-        {
-            <div style="flex-grow: 0.5;"></div>
-        }
-
-        <div style="display: flex; gap: 20px; align-items: center;">
-            @if (sessionUser != null)
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm px-4 py-3">
+        <div class="container-fluid">
+            @if (sessionRole == "Admin")
             {
-                <span style="font-size: 14px;">Witaj, <strong>@sessionUser</strong> (@sessionRole)</span>
-                
-                @if (sessionRole != "Admin")
-                {
-                    <a href="/Account/Profile" style="color: #f1c40f; text-decoration: none; font-weight: bold;">👤 Moje Konto</a>
-                }
-                
-                <a href="/Account/Logout" style="color: #ff6b6b; text-decoration: none; font-weight: bold;">Wyloguj</a>
+                <a href="/" class="navbar-brand fw-bold fs-4">PANEL KONTROLI 🐾</a>
             }
             else
             {
-                <a href="/Account/Login" style="color: white; text-decoration: none; font-weight: bold;">Zaloguj się</a>
-                <a href="/Account/Register" style="color: #f39c12; text-decoration: none; font-weight: bold;">Rejestracja</a>
+                <a href="/Shop" class="navbar-brand fw-bold fs-4">E-Księgarnia 🐾</a>
             }
-        </div>
-    </div>
 
-    <nav>
-        @if (sessionRole == "Admin")
-        {
-            <a href="/" style="font-weight: bold; color: #f1c40f;">🏠 Pulpit Zarządczy</a>
-            <a href="/Books/Create" style="color: #f1c40f; font-weight: bold;">[Admin] Dodaj książki</a>
-            <a href="/Books" style="color: #f1c40f;">[Admin] Stan Magazynowy</a>
-            <a href="/Rentals/Returns" style="color: #f1c40f; font-weight: bold;">[Admin] Zamówienia i Wypożyczenia</a>
-        }
-        else
-        {
-            <a href="http://localhost:8000/" style="font-weight: bold; color: #f1c40f;">🏠 Strona Główna</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Przełącz nawigację">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-            <div class="mega-dropdown">
-                <a href="#" class="mega-dropdown-btn">Kategorie ▾</a>
-                <div class="mega-dropdown-content">
-                    <div class="mega-column">
-                        <h3>Polecane</h3>
-                        <a href="/Shop?gatunek=Biografia">Biografie</a>
-                        <a href="/Shop?gatunek=Biznes">Biznes</a>
-                        <a href="/Shop?gatunek=Ezoteryka i parapsychologia">Ezoteryka i parapsychologia</a>
-                        <a href="/Shop?gatunek=Fantasy">Fantastyka</a>
-                        <a href="/Shop?gatunek=Historia">Historia</a>
-                        <a href="/Shop?gatunek=Komiksy, Mangy">Komiksy</a>
-                        <a href="/Shop?gatunek=Kryminał">Kryminał, sensacja, thriller</a>
-                        <a href="/Shop?gatunek=Wiek-6-8" class="highlight">Książki dla dzieci</a>
-                        <a href="/Shop?gatunek=Dla młodzieży">Książki dla młodzieży</a>
-                        <a href="/Shop?gatunek=Kuchnia i diety">Kuchnia i diety</a>
-                    </div>
-                    <div class="mega-column">
-                        <h3>Kultura i sztuka</h3>
-                        <a href="/Shop?gatunek=Popularnonaukowa">Literature faktu, reportaż</a>
-                        <a href="/Shop?gatunek=Literatura obcojęzyczna">Literatura obyczajowa</a>
-                        <a href="/Shop?gatunek=Literatura obyczajowa">Literatura obyczajowa</a>
-                        <a href="/Shop?gatunek=Powieść">Literatura piękna</a>
-                        <a href="/Shop?gatunek=Nauka języków">Nauka języków</a>
-                        <a href="/Shop?gatunek=Nauki humanistyczne">Nauki humanistyczne</a>
-                        <a href="/Shop?gatunek=Naukowe">Nauki ścisłe, medycyna</a>
-                        <a href="/Shop?gatunek=Podręczniki akademickie">Podręczniki akademickie</a>
-                        <a href="/Shop?gatunek=Podróże i turystyka">Podróże i turystyka</a>
-                        <a href="/Shop?gatunek=Poezja">Poezja i drama</a>
-                        <a href="/Shop?gatunek=Popularnonaukowa">Popularnonaukowe</a>
-                        <a href="/Shop?gatunek=Poradniki">Poradniki</a>
-                        <a href="/Shop?gatunek=Prawo">Prawo</a>
-                        <a href="/Shop?gatunek=Religia">Religia</a>
-                        <a href="/Shop?gatunek=Sport">Sport</a>
-                    </div>
-                    <div class="mega-column">
-                        <h3>Książki dla dzieci</h3>
-                        <a href="/Shop?gatunek=Wiek-0-2">0-2 lat</a>
-                        <a href="/Shop?gatunek=Wiek-3-5">3-5 lat</a>
-                        <a href="/Shop?gatunek=Wiek-6-8">6-8 lat</a>
-                        <a href="/Shop?gatunek=Wiek-9-12">9-12 lat</a>
-                        <h3 style="margin-top: 20px;">Rozwój osobisty</h3>
-                        <a href="/Shop?gatunek=Emocje">Emocje i uczucia</a>
-                        <a href="/Shop?gatunek=Kariera">Kariera i sukces</a>
-                        <a href="/Shop?gatunek=Psychologia">Psychologia i motywacja</a>
-                    </div>
+            <div class="collapse navbar-collapse" id="mainNavbar">
+                
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-2">
+                    @if (sessionRole == "Admin")
+                    {
+                        <li class="nav-item"><a class="nav-link fw-bold text-warning" href="/">🏠 Pulpit Zarządczy</a></li>
+                        <li class="nav-item"><a class="nav-link text-warning" href="/Books/Create">[Admin] Dodaj książki</a></li>
+                        <li class="nav-item"><a class="nav-link text-warning" href="/Books">[Admin] Stan Magazynowy</a></li>
+                        <li class="nav-item"><a class="nav-link text-warning" href="/Rentals/Returns">[Admin] Zamówienia</a></li>
+                    }
+                    else
+                    {
+                        <li class="nav-item"><a class="nav-link fw-bold" href="http://localhost:8000/">🏠 Strona Główna</a></li>
+                        
+                        <li class="nav-item dropdown position-static">
+                            <a class="nav-link dropdown-toggle" href="#" id="megaMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Kategorie ▾
+                            </a>
+                            <div class="dropdown-menu mega-dropdown-menu p-4 shadow-lg border-0 container rounded-3" aria-labelledby="megaMenu">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <h6 class="fw-bold text-primary border-bottom pb-2">Polecane</h6>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Biografia">Biografie</a>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Biznes">Biznes</a>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Fantasy">Fantastyka</a>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Kryminał">Kryminał i thriller</a>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <h6 class="fw-bold text-primary border-bottom pb-2">Kultura i Nauka</h6>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Powieść">Literatura piękna</a>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Naukowe">Nauki ścisłe</a>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Popularnonaukowa">Popularnonaukowe</a>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Poradniki">Poradniki</a>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <h6 class="fw-bold text-primary border-bottom pb-2">Dla dzieci i rozwój</h6>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Wiek-3-5">Wiek 3-5 lat</a>
+                                        <a class="dropdown-item py-1" href="/Shop?gatunek=Wiek-6-8">Wiek 6-8 lat</a>
+                                        <a class="dropdown-item py-1 fw-bold text-success" href="/Shop?gatunek=Psychologia">Psychologia</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+
+                @if (sessionRole != "Admin")
+                {
+                    <form action="/Shop" method="get" class="d-flex mx-lg-auto my-2 my-lg-0 w-100 style-search-form" style="max-width: 500px;">
+                        <input type="search" name="fraza" value="@ViewBag.WybranaFraza" class="form-control me-2" placeholder="Tytuł lub autor... 🐾" aria-label="Szukaj">
+                        @if (!string.IsNullOrEmpty(ViewBag.AktualnyGatunek))
+                        {
+                            <input type="hidden" name="gatunek" value="@ViewBag.AktualnyGatunek" />
+                        }
+                        <button class="btn btn-outline-light" type="submit">Szukaj</button>
+                    </form>
+                }
+
+                <div class="d-flex align-items-center gap-3 mt-2 mt-lg-0 text-white">
+                    @if (sessionUser != null)
+                    {
+                        <span class="small text-light">Witaj, <strong>@sessionUser</strong></span>
+                        @if (sessionRole != "Admin")
+                        {
+                            <a href="/Account/Profile" class="btn btn-sm btn-warning text-dark fw-bold"><i class="bi bi-person"></i> Konto</a>
+                        }
+                        <a href="/Account/Logout" class="btn btn-sm btn-danger fw-bold">Wyloguj</a>
+                    }
+                    else
+                    {
+                        <a href="/Account/Login" class="btn btn-sm btn-outline-light">Zaloguj się</a>
+                        <a href="/Account/Register" class="btn btn-sm btn-warning text-dark fw-bold">Rejestracja</a>
+                    }
+
+                    @if (sessionRole != "Admin")
+                    {
+                        <a href="/Shop/Cart" class="text-white text-decoration-none ms-2">
+                            <i class="bi bi-cart3 fs-5"></i> <span class="cart-status ms-1">@iloscWKoszyku</span>
+                        </a>
+                    }
                 </div>
+
             </div>
-            
-            
-            <div style="margin-left: auto; display: flex; gap: 25px; align-items: center;">
-                <a href="/Shop/Cart">🛒 Mój Koszyk <span class="cart-status">@iloscWKoszyku</span></a>
-            </div>
-        }
+        </div>
     </nav>
 </header>
 
-<div class="container">
+<div class="container my-5 flex-grow-1">
+    
     @if (!string.IsNullOrEmpty(sessionAuthError))
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="padding: 12px 20px; margin-bottom: 20px; border-radius: 6px; font-size: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7;">
-            <span>@sessionAuthError</span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" style="background: none; border: none; font-size: 16px; cursor: pointer; color: inherit;" onclick="this.parentElement.style.display='none';">×</button>
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> @sessionAuthError
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-        
         HttpContextAccessor.HttpContext?.Session.Remove("MeowAuthError");
     }
 
@@ -310,19 +173,37 @@
     {
         var alertClass = TempData["MessageType"]?.ToString() == "success" ? "alert-success" : 
             (TempData["MessageType"]?.ToString() == "warning" ? "alert-warning" : "alert-danger");
-                     
-        <div class="alert @alertClass alert-dismissible fade show" role="alert" style="padding: 12px 20px; margin-bottom: 20px; border-radius: 6px; font-size: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; background-color: @(alertClass == "alert-success" ? "#d1e7dd" : (alertClass == "alert-warning" ? "#fff3cd" : "#f8d7da")); color: @(alertClass == "alert-success" ? "#0f5132" : (alertClass == "alert-warning" ? "#664d03" : "#842029")); border: 1px solid @(alertClass == "alert-success" ? "#badbcc" : (alertClass == "alert-warning" ? "#ffecb5" : "#f5c2c7"));">
-            <span>@TempData["Message"]</span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" style="background: none; border: none; font-size: 16px; cursor: pointer; color: inherit;" onclick="this.parentElement.style.display='none';">×</button>
+        var iconClass = TempData["MessageType"]?.ToString() == "success" ? "bi-check-circle-fill" : "bi-exclamation-circle-fill";
+                  
+        <div class="alert @alertClass alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi @iconClass me-2"></i> @TempData["Message"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
     
     @RenderBody()
 </div>
 
-<footer>
-    &copy; @DateTime.Now.Year E-Księgarnia Internetowa. Wszystkie prawa zastrzeżone.
+<footer class="text-center py-4 mt-auto border-top text-secondary">
+    <div class="container">
+        &copy; @DateTime.Now.Year E-Księgarnia Internetowa. Wszystkie prawa zastrzeżone.
+    </div>
 </footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Automatyczne znikanie alertów sukcesu po 5 sekundach
+        const alerts = document.querySelectorAll('.alert-success');
+        alerts.forEach(function(alert) {
+            setTimeout(function() {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 5000);
+        });
+    });
+</script>
 
 </body>
 </html>

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/nikolina/Desktop/meow/meow.csproj": {}
+    "/Users/nikolina/Desktop/meow-kopia/meow.csproj": {}
   },
   "projects": {
-    "/Users/nikolina/Desktop/meow/meow.csproj": {
+    "/Users/nikolina/Desktop/meow-kopia/meow.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/nikolina/Desktop/meow/meow.csproj",
+        "projectUniqueName": "/Users/nikolina/Desktop/meow-kopia/meow.csproj",
         "projectName": "meow",
-        "projectPath": "/Users/nikolina/Desktop/meow/meow.csproj",
+        "projectPath": "/Users/nikolina/Desktop/meow-kopia/meow.csproj",
         "packagesPath": "/Users/nikolina/.nuget/packages/",
-        "outputPath": "/Users/nikolina/Desktop/meow/obj/",
+        "outputPath": "/Users/nikolina/Desktop/meow-kopia/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/nikolina/.nuget/NuGet/NuGet.Config"
