@@ -134,12 +134,13 @@
                         ✔ Dostępny w magazynie wysyłkowym (Sztuk: @Model.IloscDoSprzedazy)
                     </div>
 
-                    <form action="/Shop/AddToCart" method="post" style="margin: 0;">
-                        <input type="hidden" name="bookId" value="@Model.Id" />
+                    <form id="ajax-add-to-cart-form" style="margin: 0;">
+                        <input type="hidden" id="cart-book-id" value="@Model.Id" />
                         <button type="submit" class="btn-buy">
                             Dodaj do koszyka
                         </button>
                     </form>
+                    <div id="api-message-container" style="display:none; padding: 15px; border-radius: 6px; margin: 15px 0; font-weight: bold;"></div>
                 }
                 else
                 {
@@ -300,3 +301,59 @@
         </table>
     </div>
 </div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("ajax-add-to-cart-form");
+    
+    if (form) {
+        form.addEventListener("submit", function (e) {
+            e.preventDefault(); // Blokujemy tradycyjne przeładowanie strony (Punkt 15)
+
+            const bookId = parseInt(document.getElementById("cart-book-id").value);
+            const messageContainer = document.getElementById("api-message-container");
+
+            // Wysyłamy asynchroniczne żądanie metodą POST do naszego nowego API (Punkt 15 & 17)
+            fetch("/api/cart/add", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ bookId: bookId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Wyświetlanie dynamicznego komunikatu zwrotnego
+                messageContainer.style.display = "block";
+                messageContainer.innerText = data.message;
+                
+                if (data.success) {
+                    messageContainer.style.background = "#dcfce7";
+                    messageContainer.style.color = "#15803d";
+                    messageContainer.style.border = "1px solid #15803d";
+
+                    // Dynamiczna aktualizacja licznika koszyka w układzie _Layout.cshtml (szukamy klasy .cart-status)
+                    const cartBadge = document.querySelector(".cart-status");
+                    if (cartBadge) {
+                        cartBadge.innerText = data.totalItems;
+                    }
+                    
+                    // Opcjonalnie: automatyczne ukrycie komunikatu sukcesu po 4 sekundach
+                    setTimeout(() => { messageContainer.style.display = "none"; }, 4000);
+                } else {
+                    messageContainer.style.background = "#fee2e2";
+                    messageContainer.style.color = "#ef4444";
+                    messageContainer.style.border = "1px solid #ef4444";
+                }
+            })
+            .catch(error => {
+                console.error("Błąd podczas komunikacji z API koszyka:", error);
+                messageContainer.style.display = "block";
+                messageContainer.innerText = "Wystąpił nieoczekiwany błąd serwera. Spróbuj ponownie.";
+                messageContainer.style.background = "#fee2e2";
+                messageContainer.style.color = "#ef4444";
+                messageContainer.style.border = "1px solid #ef4444";
+            });
+        });
+    }
+});
+</script>

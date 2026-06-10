@@ -89,7 +89,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 3. DODAWANIE DO KOSZYKA (STRING FORMAT)
+        // 3. DODAWANIE DO KOSZYKA (STANDARDOWY REFRESH FORMULARZA)
         // ==========================================================
         [HttpPost]
         public IActionResult AddToCart(int bookId)
@@ -121,6 +121,47 @@ namespace meow.Controllers
             TempData["Message"] = $"Pomyślnie dodano „{book.Tytul}” do Twojego koszyka! 🐾";
             TempData["MessageType"] = "success";
             return RedirectToAction("Details", new { id = bookId });
+        }
+
+        // ==========================================================
+        // 3a. DEDYKOWANY ENDPOINT API: ASYNCHRONICZNY KOSZYK (Punkt 17)
+        // ==========================================================
+        [HttpPost("api/cart/add")]
+        public IActionResult AddToCartApi([FromBody] CartRequest request)
+        {
+            if (request == null || request.BookId <= 0)
+            {
+                return BadRequest(new { success = false, message = "Nieprawidłowe ID produktu." });
+            }
+
+            var book = _context.Books.FirstOrDefault(b => b.Id == request.BookId);
+            if (book == null || book.Cena == 0 || book.IloscDoSprzedazy <= 0)
+            {
+                return Json(new { success = false, message = "Niestety, ten produkt nie jest obecnie dostępny w sprzedaży." });
+            }
+
+            var cartString = HttpContext.Session.GetString("Koszyk") ?? "";
+            List<int> cartItems = string.IsNullOrEmpty(cartString)
+                ? new List<int>()
+                : cartString.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList();
+
+            if (cartItems.Count(id => id == request.BookId) >= book.IloscDoSprzedazy)
+            {
+                return Json(new { 
+                    success = false, 
+                    message = $"Osiągnięto limit! W magazynie meow mamy już tylko {book.IloscDoSprzedazy} szt. tego produktu." 
+                });
+            }
+
+            cartItems.Add(request.BookId);
+            HttpContext.Session.SetString("Koszyk", string.Join(",", cartItems));
+
+            // Zwracamy obiekt JSON z nowym łącznym stanem koszyka (Punkt 17)
+            return Json(new { 
+                success = true, 
+                message = $"Pomyślnie dodano „{book.Tytul}” do Twojego koszyka! 🐾",
+                totalItems = cartItems.Count 
+            });
         }
 
         // ==========================================================
@@ -202,7 +243,7 @@ namespace meow.Controllers
             return RedirectToAction("Cart");
         }
 
-// ==========================================================
+        // ==========================================================
         // 6. CHECKOUT (DYNAMICZNE DANE ZALOGOWANEGO KLIENTA)
         // ==========================================================
         [HttpGet]
@@ -256,11 +297,11 @@ namespace meow.Controllers
 
             return View(klientData);
         }
+
         // ==========================================================
         // 7. METODA DOSTAWY (ZAPISZ DANE DO SESJI!)
         // ==========================================================
         [HttpPost]
-    
         public IActionResult Delivery(string typ_odbiorcy, string imie, string? nazwisko, string? nazwa_firmy,
             string? nip, string email, string telefon, string kraj, string ulica, string numer, string? lokal,
             string kodPocztowy, string miejscowosc)
@@ -287,7 +328,7 @@ namespace meow.Controllers
             return View();
         }
 
-      // ==========================================================
+        // ==========================================================
         // 8. OSTATECZNE FINALIZOWANIE ZAMÓWIENIA (DYNAMICZNA POPRAWKA SESJI)
         // ==========================================================
         [HttpPost]
@@ -329,7 +370,6 @@ namespace meow.Controllers
 
             var bookIds = cartString.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList();
             var zakupioneGrupy = bookIds.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
-
 
             var strategy = _context.Database.CreateExecutionStrategy();
 
@@ -392,5 +432,13 @@ namespace meow.Controllers
 
             return RedirectToAction("Index", "Home");
         }
+    }
+
+    // ==========================================================
+    // POMOCNICZY MODEL DLA PARAMETRU WEJŚCIOWEGO API (JSON)
+    // ==========================================================
+    public class CartRequest
+    {
+        public int BookId { get; set; }
     }
 }
