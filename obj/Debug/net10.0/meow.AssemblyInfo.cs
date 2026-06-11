@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("meow")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+416f91ce36f30eb71abd4d72b52933bbac24b99e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+10365e38c64a0392a27120eb4486774f9c1f4598")]
 [assembly: System.Reflection.AssemblyProductAttribute("meow")]
 [assembly: System.Reflection.AssemblyTitleAttribute("meow")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

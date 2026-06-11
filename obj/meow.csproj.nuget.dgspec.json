@@ -52,6 +52,10 @@
               "target": "Package",
               "version": "[1.0.28, )"
             },
+            "MailKit": {
+              "target": "Package",
+              "version": "[4.17.0, )"
+            },
             "Microsoft.EntityFrameworkCore": {
               "target": "Package",
               "version": "[9.0.0, )"

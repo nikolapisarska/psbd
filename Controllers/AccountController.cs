@@ -17,12 +17,14 @@ namespace meow.Controllers
     {
         private readonly LibraryDbContext _context;
         private readonly ILogger<AccountController> _logger; // Systemowy Logger zdarzeń
+        private readonly IEmailService _emailService; // Nowo dodana usługa mailingu
 
-        // Konstruktor realizujący wstrzykiwanie zależności (Dependency Injection)
-        public AccountController(LibraryDbContext context, ILogger<AccountController> logger)
+        // Konstruktor realizujący wstrzykiwanie zależności (Dependency Injection) z uwzględnieniem IEmailService
+        public AccountController(LibraryDbContext context, ILogger<AccountController> logger, IEmailService emailService)
         {
             _context = context;
             _logger = logger;
+            _emailService = emailService;
         }
 
         // ==========================================================
@@ -216,11 +218,11 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 5. REJESTRACJA (POST)
+        // 5. REJESTRACJA (POST) - ZMIENIONA NA ASYNCHRONICZNĄ Z USŁUGĄ MAILINGU
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken] 
-        public IActionResult Register([Bind("Login,Haslo,Email,Imie,Nazwisko,Telefon")] RegisterViewModel model)
+        public async Task<IActionResult> Register([Bind("Login,Haslo,Email,Imie,Nazwisko,Telefon")] RegisterViewModel model)
         {
             if (!ModelState.IsValid)
             {
@@ -263,6 +265,10 @@ namespace meow.Controllers
 
             _context.Users.Add(newUser);
             _context.SaveChanges();
+
+            // --- PUNKT 13: MAILING (WYSOŁANIE MAILA POWITALNEGO) ---
+            // Wywołujemy asynchroniczną usługę wysyłania e-maila po poprawnym zarejestrowaniu użytkownika.
+            await _emailService.SendWelcomeEmailAsync(model.Email, model.Login);
 
             return RedirectToAction("Login");
         }

@@ -1,4 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
+// JAWNE DODANIE WYMAGANYCH USINGS DLA MAILKIT NA SAMEJ GÓRZE PLIKU
+using MailKit.Net.Smtp;
+using MailKit.Security;
+using MimeKit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,7 +16,7 @@ builder.Services.AddDbContext<meow.Models.LibraryDbContext>(options =>
         mySqlOptions => mySqlOptions.EnableRetryOnFailure()));
 
 // ==========================================================
-// 2. REJESTRACJA USŁUG SYSTEMOWYCH
+// 2. REJESTRACJA USŁUG SYSTEMOWYCH I WŁASNYCH
 // ==========================================================
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
@@ -24,6 +28,9 @@ builder.Services.AddSession(options => {
     // Zabezpieczenie przed blokowaniem ciasteczek sesji w środowisku Docker (HTTP Localhost)
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
+
+// Rejestracja usługi wysyłania wiadomości e-mail w kontenerze DI
+builder.Services.AddTransient<IEmailService, SmtpEmailService>();
 
 var app = builder.Build();
 
@@ -87,3 +94,59 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
+
+// ==========================================================
+// 5. DEFINICJE TYPÓW (INTERFEJSY I KLASY)
+// Muszą znajdować się na samym dole pliku Top-level statements
+// ==========================================================
+public interface IEmailService
+{
+    Task SendWelcomeEmailAsync(string toEmail, string userName);
+}
+
+public class SmtpEmailService : IEmailService
+{
+    private readonly IConfiguration _configuration;
+
+    public SmtpEmailService(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
+    public async Task SendWelcomeEmailAsync(string toEmail, string userName)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("Biblioteka Meow 🐾", "ksiegarniameow@gmail.com"));
+        message.To.Add(new MailboxAddress(userName, toEmail));
+        message.Subject = "Witaj w gronie czytelników E-księgarni Meow!";
+
+        var bodyBuilder = new BodyBuilder
+        {
+            HtmlBody = $"<h1>Witaj {userName}!</h1><p>Twoje konto (login: {userName}) zostało pomyślnie utworzone. Życzymy miłego czytania i/lub zakupów! 🐱📖</p>"
+        };
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using (var client = new MailKit.Net.Smtp.SmtpClient())
+        {
+            try
+            {
+                // Łączenie z jawnym wymuszeniem STARTTLS na porcie 587
+                await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync("ksiegarniameow@gmail.com", "kqxcgikrfdmpzrkv");
+                
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+                
+                Console.WriteLine($"🚀 Mail powitalny wysłany przez MailKit do: {toEmail}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+                }
+            }
+        }
+    }
+}
