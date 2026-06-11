@@ -1,3 +1,10 @@
+@using Microsoft.AspNetCore.Http
+@{
+// Pobieramy dane z sesji na samym początku
+var userLogin = Context.Session.GetString("User");
+var userRole = Context.Session.GetString("UserRole");
+}
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -11,25 +18,34 @@
 
 <nav class="navbar navbar-expand-lg navbar-dark shadow-sm py-3" style="background-color: #234465;">
     <div class="container flex-wrap flex-sm-nowrap gap-3">
+
+        @if (userRole == "Admin")
+        {
+        <span class="navbar-brand fw-bold fs-4 m-0" style="cursor: default;">🐾 meow księgarnia</span>
+        }
+        else
+        {
         <a class="navbar-brand fw-bold fs-4 m-0" href="/Shop">🐾 meow księgarnia</a>
+        }
 
         <div class="d-flex align-items-center flex-grow-1 flex-sm-grow-0 justify-content-between gap-4 ms-auto w-100 w-sm-auto">
+
+            @if (userRole != "Admin")
+            {
             <div class="input-group" style="max-width: 240px;">
                 <input type="text" class="form-control form-control-sm" id="searchField" placeholder="Szukaj po tytule..." />
             </div>
+            }
 
-            <div class="navbar-nav flex-row align-items-center gap-3">
-                <a class="nav-link text-white fw-medium small" href="/Shop">Sklep</a>
+            <div class="navbar-nav flex-row align-items-center gap-3 ms-auto">
+                @if (userRole != "Admin")
+                {
+                    <a class="nav-link text-white fw-medium small" href="/Shop">Sklep</a>
 
-                <a class="nav-link text-white fw-medium small position-relative" href="/Shop/Cart">
-                    Koszyk
-                    <span class="badge rounded-pill ms-1 cart-status text-white" style="background-color: #e67e22;">0</span>
-                </a>
-
-                @using Microsoft.AspNetCore.Http
-                @{
-                    var userLogin = Context.Session.GetString("User");
-                    var userRole = Context.Session.GetString("UserRole");
+                    <a class="nav-link text-white fw-medium small position-relative" href="/Shop/Cart">
+                        Koszyk
+                        <span class="badge rounded-pill ms-1 cart-status text-white" style="background-color: #e67e22;">0</span>
+                    </a>
                 }
 
                 @if (!string.IsNullOrEmpty(userLogin))
@@ -37,7 +53,7 @@
                     // Menu dla ZALOGOWANEGO użytkownika
                     if (userRole == "Admin")
                     {
-                        <a class="nav-link text-white fw-medium small" href="/Books">Panel Admina</a>
+                        <a class="nav-link text-white fw-medium small" href="/">Panel Admina</a>
                     }
                     else
                     {
@@ -76,42 +92,37 @@
 @await RenderSectionAsync("Scripts", required: false)
 
 <script>
-    // Zapisujemy oryginalny wygląd sklepu, żeby móc go przywrócić, gdy użytkownik wyczyści wyszukiwarkę
+    // Skrypt JavaScript zabezpieczony operatorem opcjonalnego łańcuchowania (?.)
+    // Dzięki temu, gdy element 'searchField' nie istnieje w DOM (u Admina), kod nie rzuci błędem.
     let originalShopHtml = null;
 
     document.getElementById('searchField')?.addEventListener('input', async (e) => {
         const query = e.target.value.toLowerCase().trim();
         const container = document.getElementById('books-container');
 
-        // Jeśli nie jesteśmy na stronie sklepu (brak kontenera książek), przerywamy działanie
         if (!container) return;
 
-        // Zapamiętujemy początkowy stan kart przy pierwszym naciśnięciu klawisza
         if (originalShopHtml === null) {
             originalShopHtml = container.innerHTML;
         }
 
-        // Jeśli pole wyszukiwania jest puste, przywracamy pełną listę książek
         if (query === '') {
             container.innerHTML = originalShopHtml;
             return;
         }
 
         try {
-            // PUNKT 15: Asynchroniczne pobranie danych z Twojego API za pomocą fetch()
             const response = await fetch('/api/booksapi');
             if (!response.ok) return;
 
             const books = await response.json();
 
-            // PUNKT 8: Dynamiczne filtrowanie danych w JavaScript po stronie przeglądarki
             const filteredBooks = books.filter(book => {
                 const tytul = (book.tytul || book.Tytul || '').toLowerCase();
                 const autor = (book.autor || book.Autor || '').toLowerCase();
                 return tytul.includes(query) || autor.includes(query);
             });
 
-            // Czyszczenie starej listy książek przed wstrzyknięciem przefiltrowanych
             container.innerHTML = '';
 
             if (filteredBooks.length === 0) {
@@ -119,7 +130,6 @@
                 return;
             }
 
-            // Dynamiczna przebudowa widoku sklepu (wstrzykiwanie nowego kodu HTML)
             filteredBooks.forEach(book => {
                 const bookId = book.id || book.Id;
                 const tytul = book.tytul || book.Tytul;
@@ -127,7 +137,6 @@
                 const imgUrl = book.imageUrl || book.ImageUrl || '/images/default.png';
                 const cena = book.cena || book.Cena || 0;
 
-                // Budujemy strukturę karty (dostosuj klasy CSS do wyglądu swojego sklepu)
                 const cardDiv = document.createElement('div');
                 cardDiv.className = 'col-md-4 mb-4';
                 cardDiv.innerHTML = `

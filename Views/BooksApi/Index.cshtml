@@ -1,0 +1,90 @@
+@{
+    ViewData["Title"] = "Wyszukiwarka Książek API";
+}
+
+<div class="container mt-4"> <h2>Integracja z Google Books API (Protokół HTTP)</h2>
+    <p class="text-muted">Wpisz tytuł książki, autora lub numer ISBN, aby automatycznie pobrać dane.</p>
+
+    <form asp-action="Search" method="post" class="row g-3 mb-4">
+        <div class="col-md-8">
+            <input type="text" name="query" class="form-control" placeholder="Np. Wiedźmin, Ostatnie życzenie lub 9788375747003" required />
+        </div>
+        <div class="col-md-4">
+            <button type="submit" class="btn btn-primary w-100">Pobierz dane z API</button>
+        </div>
+    </form>
+
+    <hr />
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger">@ViewBag.Error</div>
+    }
+    @if (ViewBag.Message != null)
+    {
+        <div class="alert alert-warning">@ViewBag.Message</div>
+    }
+
+    @if (ViewBag.Title != null)
+    {
+        <div class="card shadow-sm">
+            <div class="row g-0">
+                <div class="col-md-3 text-center p-3 bg-light d-flex align-items-center justify-content-center">
+                    @if (!string.IsNullOrEmpty(ViewBag.ThumbnailUrl))
+                    {
+                        <img src="@ViewBag.ThumbnailUrl" alt="Okładka książki" class="img-fluid rounded shadow" style="max-height: 250px;" />
+                    }
+                    else
+                    {
+                        <div class="text-muted border p-4">Brak oficjalnej okładki w API</div>
+                    }
+                </div>
+                <div class="col-md-9">
+                    <div class="card-body">
+                        <h3 class="card-title text-primary">@ViewBag.Title</h3>
+                        <h6 class="card-subtitle mb-2 text-muted"><strong>Autorzy:</strong> @ViewBag.Authors</h6>
+                        
+                        <ul class="list-inline my-3 text-secondary">
+                            <li class="list-inline-item"><strong>Wydawnictwo:</strong> @ViewBag.Publisher</li>
+                            <li class="list-inline-item">|</li>
+                            <li class="list-inline-item"><strong>Data wydania:</strong> @ViewBag.PublishedDate</li>
+                        </ul>
+
+                        <p class="card-text"><strong>Opis książki:</strong></p>
+                        <p class="text-justify" style="max-height: 200px; overflow-y: auto;">@ViewBag.Description</p>
+                        
+                        <div class="mt-3">
+                            <form asp-action="SaveToDatabase" method="post">
+                                
+                                <input type="hidden" name="title" value="@ViewBag.Title" />
+                                <input type="hidden" name="authors" value="@ViewBag.Authors" />
+                                <input type="hidden" name="publisher" value="@ViewBag.Publisher" />
+                                <input type="hidden" name="description" value="@ViewBag.Description" />
+                                <input type="hidden" name="imageUrl" value="@ViewBag.ThumbnailUrl" />
+
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-cloud-arrow-up"></i> Zapisz tę książkę w mojej bazie danych
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
