@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-// JAWNE DODANIE WYMAGANYCH USINGS DLA MAILKIT NA SAMEJ GÓRZE PLIKU
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
@@ -21,15 +20,31 @@ builder.Services.AddDbContext<meow.Models.LibraryDbContext>(options =>
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
+
+// [PUNKT 16 - KONSUMPCJA API] Rejestracja fabryki klientów HTTP (Wykład 5: Protokół HTTP)
+builder.Services.AddHttpClient();
+
+// [PUNKT 12 - LOKALIZACJA] Konfiguracja lokalizacji i ścieżki do zasobów (Wykład 13-15)
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    var supportedCultures = new[] { "pl", "en" };
+    options.SetDefaultCulture(supportedCultures[0]) // Domyślnie polski
+           .AddSupportedCultures(supportedCultures)
+           .AddSupportedUICultures(supportedCultures);
+    
+    // Pozwalamy na przekazywanie języka w query stringu (?culture=en) lub ciasteczku
+    options.RequestCultureProviders.Insert(0, new Microsoft.AspNetCore.Localization.QueryStringRequestCultureProvider());
+});
+
 builder.Services.AddSession(options => {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
-    // Zabezpieczenie przed blokowaniem ciasteczek sesji w środowisku Docker (HTTP Localhost)
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
 
-// Rejestracja usługi wysyłania wiadomości e-mail w kontenerze DI
 builder.Services.AddTransient<IEmailService, SmtpEmailService>();
 
 var app = builder.Build();
@@ -40,8 +55,6 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<meow.Models.LibraryDbContext>();
-    
-    // Upewnij się, że baza jest stworzona i ma aktualne tabele
     if (context.Database.GetPendingMigrations().Any())
     {
         context.Database.Migrate();
@@ -52,10 +65,8 @@ using (var scope = app.Services.CreateScope())
     }
     Console.WriteLine("🐾 Baza danych gotowa.");
 
-    // Automatycznie dodajemy poprawnego Admina, jeśli nie istnieje w tabeli
     if (!context.Users.Any(u => u.Rola == "Admin"))
     {
-        // 1. Tworzymy fikcyjnego klienta dla potrzeb relacji NOT NULL
         var adminKlient = new meow.Models.Klient
         {
             Imie = "Systemowy",
@@ -66,7 +77,6 @@ using (var scope = app.Services.CreateScope())
         context.Klienci.Add(adminKlient);
         context.SaveChanges(); 
 
-        // 2. Tworzymy użytkownika i SZYFRUJEMY jego hasło przez BCrypt!
         var systemAdmin = new meow.Models.User
         {
             Login = "superadmin",
@@ -83,11 +93,15 @@ using (var scope = app.Services.CreateScope())
 // ==========================================================
 // 4. KONFIGURACJA POTOKU ŻĄDAŃ HTTP (MIDDLEWARE PIPELINE)
 // ==========================================================
+// [PUNKT 12 - LOKALIZACJA] Uruchomienie middleware lokalizacji PRZED routingiem i statycznymi plikami
+var localizationOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<RequestLocalizationOptions>>().Value;
+app.UseRequestLocalization(localizationOptions);
+
 app.UseStaticFiles();
 app.UseRouting();
 
-app.UseSession();          // ładuje sesję (w tym koszyk i użytkownika)
-app.UseAuthorization();    // standardowe uprawnienia .NET
+app.UseSession();          
+app.UseAuthorization();    
 
 app.MapControllerRoute(
     name: "default",
@@ -97,7 +111,6 @@ app.Run();
 
 // ==========================================================
 // 5. DEFINICJE TYPÓW (INTERFEJSY I KLASY)
-// Muszą znajdować się na samym dole pliku Top-level statements
 // ==========================================================
 public interface IEmailService
 {
@@ -107,11 +120,7 @@ public interface IEmailService
 public class SmtpEmailService : IEmailService
 {
     private readonly IConfiguration _configuration;
-
-    public SmtpEmailService(IConfiguration configuration)
-    {
-        _configuration = configuration;
-    }
+    public SmtpEmailService(IConfiguration configuration) { _configuration = configuration; }
 
     public async Task SendWelcomeEmailAsync(string toEmail, string userName)
     {
@@ -130,22 +139,15 @@ public class SmtpEmailService : IEmailService
         {
             try
             {
-                // Łączenie z jawnym wymuszeniem STARTTLS na porcie 587
                 await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
                 await client.AuthenticateAsync("ksiegarniameow@gmail.com", "kqxcgikrfdmpzrkv");
-                
                 await client.SendAsync(message);
                 await client.DisconnectAsync(true);
-                
                 Console.WriteLine($"🚀 Mail powitalny wysłany przez MailKit do: {toEmail}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
-                }
             }
         }
     }

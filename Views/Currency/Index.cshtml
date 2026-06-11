@@ -1,0 +1,12 @@
+@{
+    ViewData["Title"] = "Kursy Walut";
+}
+<div class="container mt-4">
+    <h2>📊 Integracja z zewnętrznym API (Protokół HTTP)</h2>
+    <div class="card p-4 mt-3 shadow-sm">
+        <p class="fs-4">Aktualny kurs EUR pobrany z <strong>api.nbp.pl</strong>:</p>
+        <p class="display-5 text-success"><strong>1 EUR = @ViewBag.EurRate PLN</strong></p>
+        <hr />
+        <p class="text-muted mb-0"><small>Zapytanie zostało zrealizowane po stronie backendu asynchronicznie za pomocą klasy HttpClient.</small></p>
+    </div>
+</div>

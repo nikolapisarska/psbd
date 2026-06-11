@@ -26,8 +26,37 @@
                     <span class="badge rounded-pill ms-1 cart-status text-white" style="background-color: #e67e22;">0</span>
                 </a>
 
-                <a class="nav-link text-white fw-medium small" href="/Books">Panel Admina</a>
-                <a class="nav-link text-white fw-medium small" href="/Account/Profile">Mój Profil</a>
+                @using Microsoft.AspNetCore.Http
+                @{
+                    var userLogin = Context.Session.GetString("User");
+                    var userRole = Context.Session.GetString("UserRole");
+                }
+
+                @if (!string.IsNullOrEmpty(userLogin))
+                {
+                    // Menu dla ZALOGOWANEGO użytkownika
+                    if (userRole == "Admin")
+                    {
+                        <a class="nav-link text-white fw-medium small" href="/Books">Panel Admina</a>
+                    }
+                    else
+                    {
+                        <a class="nav-link text-white fw-medium small" href="/Account/Profile">Mój Profil</a>
+                    }
+
+                    <form action="/Account/Logout" method="post" class="d-inline m-0">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="nav-link text-white fw-medium small bg-transparent border-0 p-0" style="cursor: pointer;">
+                            Wyloguj (@userLogin) 🐾
+                        </button>
+                    </form>
+                }
+                else
+                {
+                    // Menu dla NIEZALOGOWANEGO użytkownika
+                    <a class="nav-link text-white fw-medium small" href="/Account/Login">Zaloguj się</a>
+                    <a class="nav-link text-white fw-medium small" href="/Account/Register">Rejestracja</a>
+                }
             </div>
         </div>
     </div>

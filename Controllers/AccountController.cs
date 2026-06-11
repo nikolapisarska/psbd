@@ -150,10 +150,10 @@ namespace meow.Controllers
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken] 
-        public async Task<IActionResult> Login(string login, string password)
+        public async Task<IActionResult> Login(string login, string haslo) // <-- Zmiana tutaj
         {
             // Walidacja pustych pól formularza
-            if (string.IsNullOrEmpty(login) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(login) || string.IsNullOrEmpty(haslo)) // <-- Zmiana tutaj
             {
                 TempData["Message"] = "Uzupełnij login i hasło.";
                 TempData["MessageType"] = "error";
@@ -166,7 +166,7 @@ namespace meow.Controllers
                 .FirstOrDefaultAsync(u => u.Login == login); 
 
             // Weryfikacja loginu oraz weryfikacja hasła kryptograficznego przy użyciu BCrypt
-            if (user != null && BCrypt.Net.BCrypt.Verify(password, user.Haslo))
+            if (user != null && BCrypt.Net.BCrypt.Verify(haslo, user.Haslo)) // <-- Zmiana tutaj
             {
                 // --- PUNKT 19: LOGGER (SUKCES LOGOWANIA) ---
                 _logger.LogInformation("Użytkownik '{Login}' pomyślnie zalogował się do systemu. Rola: {Rola}. Adres IP: {IP}", 
@@ -274,9 +274,10 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 6. WYLOGOWANIE (GET)
-        // ==========================================================
-        [HttpGet]
+// 6. WYLOGOWANIE (POST)
+// ==========================================================
+        [HttpPost]
+        [ValidateAntiForgeryToken] 
         public IActionResult Logout()
         {
             HttpContext.Session.Clear();
