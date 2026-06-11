@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Memory; // Dodane dla obsługi cache
 
 namespace meow.Controllers
 {
@@ -16,6 +17,7 @@ namespace meow.Controllers
     {
         private readonly LibraryDbContext _context;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly IMemoryCache _cache; // 1. Pole dla pamięci podręcznej
 
         private readonly string[] _wszystkieGatunki = new[] { 
             "Biografia", "Biznes", "Ezoteryka i parapsychologia", "Fantasy", "Historia", 
@@ -26,21 +28,38 @@ namespace meow.Controllers
             "Wiek-0-2", "Wiek-3-5", "Wiek-6-8", "Wiek-9-12", "Emocje", "Kariera", "Psychologia"
         };
 
-        public BooksController(LibraryDbContext context, IWebHostEnvironment webHostEnvironment) 
+        // 2. Wstrzyknięcie IMemoryCache w konstruktorze
+        public BooksController(LibraryDbContext context, IWebHostEnvironment webHostEnvironment, IMemoryCache cache) 
         { 
             _context = context; 
             _webHostEnvironment = webHostEnvironment;
+            _cache = cache;
         }
 
         // ==========================================================
-        // 1. WIDOK GŁÓWNY PANELU ADMINISTRATORA
+        // 1. WIDOK GŁÓWNY PANELU ADMINISTRATORA (Z ZASTOSOWANIEM CACHE)
         // ==========================================================
         public IActionResult Index()
         {
             if (HttpContext.Session.GetString("User") == null) return RedirectToAction("Login", "Account");
 
-            var books = _context.Books.Include(b => b.Egzemplarze).ToList();
+            string cacheKey = "adminBooksList";
+
+            // 3. Sprawdzamy czy lista List<Book> znajduje się w pamięci podręcznej
+            if (!_cache.TryGetValue(cacheKey, out List<Book> books))
+            {
+                // Jeśli nie ma, wyciągamy pełną listę z bazy danych wraz z relacjami
+                books = _context.Books.Include(b => b.Egzemplarze).ToList();
+
+                // Konfiguracja czasu wygaśnięcia (np. 5 minut)
+                var cacheEntryOptions = new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
+
+                // Zapis do pamięci
+                _cache.Set(cacheKey, books, cacheEntryOptions);
+            }
             
+            // Pozostałe dynamiczne elementy ViewBag generowane przy każdym żądaniu
             ViewBag.AktywneWypozyczenia = _context.Wypozyczenia
                 .Where(w => w.DataZwrotu == null && w.IdEgzemplarz != null)
                 .Select(w => (int)w.IdEgzemplarz!)
@@ -49,6 +68,7 @@ namespace meow.Controllers
             ViewBag.Gatunki = _wszystkieGatunki;
             ViewBag.Stany = new[] { "idealny", "bardzo dobry", "dobry", "zużyty", "zniszczony" };
 
+            // Zwracamy listę (List<Book>), która idealnie pasuje do IEnumerable<meow.Models.Book> w widoku
             return View(books);
         }
 
@@ -116,6 +136,9 @@ namespace meow.Controllers
                     _context.SaveChanges();
                     transaction.Commit();
 
+                    // Czyszczenie cache po dodaniu nowej książki
+                    _cache.Remove("adminBooksList");
+
                     TempData["Message"] = $"Produkt '{book.Tytul}' został dodany do systemu meow! 🐾";
                     TempData["MessageType"] = "success";
                 }
@@ -143,7 +166,7 @@ namespace meow.Controllers
             if (book == null) return NotFound();
 
             ViewBag.Gatunki = _wszystkieGatunki;
-            return View(book);
+            return View(book); // Zwraca poprawnie jedną książkę do widoku Edit.cshtml
         }
 
         // ==========================================================
@@ -175,7 +198,6 @@ namespace meow.Controllers
                     bookInDb.IloscDoSprzedazy = updatedBook.IloscDoSprzedazy;
                     bookInDb.Opis = opis;
 
-                    // Parser cen detalicznych i okładkowych
                     if (Request.Form.ContainsKey("cenaSklep"))
                     {
                         string cenaRaw = Request.Form["cenaSklep"].ToString().Replace(",", ".");
@@ -194,12 +216,10 @@ namespace meow.Controllers
                         }
                     }
 
-                    // --- INTELIGENTNA SYNCHRONIZACJA EGZEMPLARZY BIBLIOTEKI ---
                     int aktualnaIlosc = bookInDb.Egzemplarze.Count;
 
                     if (iloscBibliotekaNowa > aktualnaIlosc)
                     {
-                
                         int ileDodac = iloscBibliotekaNowa - aktualnaIlosc;
                         for (int i = 0; i < ileDodac; i++)
                         {
@@ -216,7 +236,6 @@ namespace meow.Controllers
                     }
                     else if (iloscBibliotekaNowa < aktualnaIlosc)
                     {
-                        // Zmniejszamy ilość: usuwamy tylko WOLNE sztuki
                         int ileUsunac = aktualnaIlosc - iloscBibliotekaNowa;
                         
                         var wypozyczoneEgzemplarzeIds = _context.Wypozyczenia
@@ -235,7 +254,6 @@ namespace meow.Controllers
                         }
 
                         _context.SaveChanges();
-                        // Przypisujemy realny stan po usunięciu (na wypadek gdyby zabrakło wolnych sztuk do usunięcia)
                         bookInDb.IloscEgzemplarzy = _context.Egzemplarze.Count(e => e.IdKsiazka == bookInDb.Id);
                     }
 
@@ -272,6 +290,9 @@ namespace meow.Controllers
                     _context.SaveChanges();
                     transaction.Commit();
                     
+                    // Czyszczenie cache po udanej edycji
+                    _cache.Remove("adminBooksList");
+
                     TempData["Message"] = $"Zaktualizowano parametry oferty i zasobów bibliotecznych dla '{bookInDb.Tytul}'! 🐾";
                     TempData["MessageType"] = "success";
                 }
@@ -297,6 +318,10 @@ namespace meow.Controllers
             {
                 egz.Stan = stan; 
                 _context.SaveChanges();
+
+                // Czyszczenie cache po zmianie stanu egzemplarza
+                _cache.Remove("adminBooksList");
+
                 TempData["Message"] = "Stan techniczny egzemplarza został zaktualizowany.";
                 TempData["MessageType"] = "success";
             }
@@ -351,19 +376,24 @@ namespace meow.Controllers
                     }
 
                     transaction.Commit();
+
+                    // Czyszczenie cache po usunięciu egzemplarza
+                    _cache.Remove("adminBooksList");
+
                     TempData["Message"] = "Egzemplarz został pomyślnie usunięty.";
                     TempData["MessageType"] = "success";
                 }
                 catch (Exception ex)
                 {
                     transaction.Rollback();
-                    TempData["Message"] = "Błąd podczas usuwania: " + ex.Message;
+                    TempData["Message"] = "Błąd podczas crushing: " + ex.Message;
                     TempData["MessageType"] = "error";
                 }
             });
 
             return RedirectToAction("Index");
         }
+
         // ==========================================================
         // 8. CAŁKOWITE USUWANIE KSIĄŻKI ZE SKLEPU I BIBLIOTEKI
         // ==========================================================
@@ -381,7 +411,6 @@ namespace meow.Controllers
                     var ksiazka = _context.Books.Include(b => b.Egzemplarze).FirstOrDefault(b => b.Id == id);
                     if (ksiazka == null) return;
 
-                    // 1. Sprawdzamy, czy jakikolwiek egzemplarz tej książki jest obecnie wypożyczony
                     if (ksiazka.Egzemplarze != null && ksiazka.Egzemplarze.Any())
                     {
                         var egzemplarzeIds = ksiazka.Egzemplarze.Select(e => e.IdEgzemplarza).ToList();
@@ -394,7 +423,6 @@ namespace meow.Controllers
                             return;
                         }
 
-                        // 2. Czyszczenie historii starych zwrotów/płatności dla egzemplarzy tej książki, aby MySQL pozwolił na usunięcie
                         foreach (var egz in ksiazka.Egzemplarze)
                         {
                             var powiazaneWypozyczenia = _context.Wypozyczenia.Where(w => w.IdEgzemplarz == egz.IdEgzemplarza).ToList();
@@ -406,19 +434,19 @@ namespace meow.Controllers
                             _context.Wypozyczenia.RemoveRange(powiazaneWypozyczenia);
                         }
 
-                        // 3. Usuwamy fizyczne egzemplarze
                         _context.Egzemplarze.RemoveRange(ksiazka.Egzemplarze);
                     }
 
-                    // 4. Usuwamy stare zamówienia sklepowe powiązane z tą książką (archiwalne)
                     var powiazaneZamowieniaSklepowe = _context.Zamowienia.Where(z => z.IdKsiazki == id).ToList();
                     _context.Zamowienia.RemoveRange(powiazaneZamowieniaSklepowe);
 
-                    // 5. Na koniec usuwamy samą książkę z katalogu
                     _context.Books.Remove(ksiazka);
                     
                     _context.SaveChanges();
                     transaction.Commit();
+
+                    // Czyszczenie cache po całkowitym usunięciu obiektu
+                    _cache.Remove("adminBooksList");
 
                     TempData["Message"] = $"🐾 Sukces! Książka „{ksiazka.Tytul}” została całkowicie usunięta z systemu meow.";
                     TempData["MessageType"] = "success";

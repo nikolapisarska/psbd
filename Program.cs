@@ -16,7 +16,7 @@ builder.Services.AddDbContext<meow.Models.LibraryDbContext>(options =>
 // ==========================================================
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
-
+builder.Services.AddMemoryCache();
 builder.Services.AddSession(options => {
     options.IdleTimeout = TimeSpan.FromMinutes(30);
     options.Cookie.HttpOnly = true;

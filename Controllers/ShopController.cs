@@ -5,17 +5,19 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
-using System.Text.RegularExpressions;
+using Microsoft.Extensions.Caching.Memory; // <--- WYMAGANY IMPORT
 
 namespace meow.Controllers
 {
     public class ShopController : Controller
     {
         private readonly LibraryDbContext _context;
+        private readonly IMemoryCache _cache; // <--- 1. WSTRZYKNIĘCIE INTERFEJSU CACHE
 
-        public ShopController(LibraryDbContext context)
+        public ShopController(LibraryDbContext context, IMemoryCache cache)
         {
             _context = context;
+            _cache = cache; // <--- 2. PRZYPISANIE DO POLA
         }
 
         // ==========================================================
@@ -23,48 +25,66 @@ namespace meow.Controllers
         // ==========================================================
         public IActionResult Index(string? gatunek, string? sortowanie, string? fraza)
         {
-            var query = _context.Books.AsQueryable();
+            List<Book> booksResult;
 
-            // Filtrowanie po frazie z głównego paska menu
-            if (!string.IsNullOrEmpty(fraza))
+            // Cache stosujemy TYLKO wtedy, gdy użytkownik nie używa filtrów, wyszukiwarki ani sortowania
+            if (string.IsNullOrEmpty(gatunek) && string.IsNullOrEmpty(sortowanie) && string.IsNullOrEmpty(fraza))
             {
-                query = query.Where(b => b.Tytul!.Contains(fraza) || b.Autor!.Contains(fraza));
-                ViewBag.AktualneWyszukiwanie = fraza;
-            }
+                string cacheKey = "allBooksMainList";
 
-            if (!string.IsNullOrEmpty(gatunek))
-            {
-                query = query.Where(b => b.Gatunek == gatunek);
-                ViewBag.WybranyGatunek = $"Książki z kategorii: {gatunek}";
+                // 3. Sprawdzamy, czy czysta lista jest w pamięci cache
+                if (!_cache.TryGetValue(cacheKey, out booksResult))
+                {
+                    // Jeśli nie ma, pobieramy z bazy danych
+                    booksResult = _context.Books.ToList();
+
+                    // Konfigurujemy opcje ważności cache na 5 minut
+                    var cacheEntryOptions = new MemoryCacheEntryOptions()
+                        .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
+
+                    // Zapisujemy w pamięci RAM serwera
+                    _cache.Set(cacheKey, booksResult, cacheEntryOptions);
+                }
             }
             else
             {
-                ViewBag.WybranyGatunek = string.IsNullOrEmpty(fraza)
-                    ? "Wszystkie pozycje w e-księgarni meow 🐾"
-                    : $"Wyniki wyszukiwania dla frazy: „{fraza}”";
+                // Jeśli użytkownik filtruje lub szuka, działamy standardowo na bazie danych, aby wyniki były dokładne
+                var query = _context.Books.AsQueryable();
+
+                if (!string.IsNullOrEmpty(fraza))
+                {
+                    query = query.Where(b => b.Tytul!.Contains(fraza) || b.Autor!.Contains(fraza));
+                    ViewBag.AktualneWyszukiwanie = fraza;
+                }
+
+                if (!string.IsNullOrEmpty(gatunek))
+                {
+                    query = query.Where(b => b.Gatunek == gatunek);
+                    ViewBag.WybranyGatunek = $"Książki z kategorii: {gatunek}";
+                }
+
+                switch (sortowanie)
+                {
+                    case "cena_rosnaco": query = query.OrderBy(b => b.Cena); break;
+                    case "cena_malejaco": query = query.OrderByDescending(b => b.Cena); break;
+                    case "alfabetycznie": query = query.OrderBy(b => b.Tytul); break;
+                    default: query = query.OrderBy(b => b.Id); break;
+                }
+
+                booksResult = query.ToList();
             }
 
-            switch (sortowanie)
-            {
-                case "cena_rosnaco":
-                    query = query.OrderBy(b => b.Cena);
-                    break;
-                case "cena_malejaco":
-                    query = query.OrderByDescending(b => b.Cena);
-                    break;
-                case "alfabetycznie":
-                    query = query.OrderBy(b => b.Tytul);
-                    break;
-                default:
-                    query = query.OrderBy(b => b.Id);
-                    break;
-            }
+            // Te dane są potrzebne do poprawnego wyrenderowania widoku przez Twój układ
+            ViewBag.WybranyGatunek = string.IsNullOrEmpty(fraza) && string.IsNullOrEmpty(gatunek)
+                ? "Wszystkie pozycje w e-księgarni meow 🐾"
+                : (!string.IsNullOrEmpty(gatunek) ? $"Książki z kategorii: {gatunek}" : $"Wyniki wyszukiwania dla frazy: „{fraza}”");
 
             ViewBag.AktualnyGatunek = gatunek;
             ViewBag.AktualneSortowanie = sortowanie;
 
-            return View(query.ToList());
+            return View(booksResult); // Przekazanie listy (z cache lub przefiltrowanej z bazy)
         }
+        
 
         // ==========================================================
         // 2. KARTA SZCZEGÓŁÓW PRODUKTU

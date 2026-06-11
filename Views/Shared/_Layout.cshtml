@@ -1,360 +1,108 @@
-@model meow.Models.Book
-@{
-    ViewData["Title"] = Model.Tytul;
-}
-
-<style>
-    .product-page {
-        display: flex;
-        gap: 50px;
-        background: #ffffff;
-        padding: 40px;
-        border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        margin-top: 20px;
-    }
-
-    .product-cover-section {
-        flex: 1;
-        max-width: 400px;
-        text-align: center;
-    }
-
-    .product-cover {
-        width: 100%;
-        max-height: 550px;
-        object-fit: cover;
-        border-radius: 6px;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-    }
-
-    .product-info-section {
-        flex: 1.5;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .product-breadcrumbs {
-        font-size: 13px;
-        color: #777;
-        margin-bottom: 15px;
-    }
-
-    .btn-buy {
-        background-color: #e67e22;
-        color: white;
-        border: none;
-        padding: 14px 35px;
-        font-size: 16px;
-        font-weight: bold;
-        border-radius: 4px;
-        cursor: pointer;
-        width: 100%;
-        transition: background-color 0.2s;
-        text-align: center;
-        text-decoration: none;
-        display: inline-block;
-    }
-
-    .btn-buy:hover {
-        background-color: #d35400;
-    }
-
-    .btn-reserve {
-        background-color: #f1c40f;
-        color: #234465;
-        border: none;
-        padding: 12px 24px;
-        font-size: 16px;
-        font-weight: bold;
-        border-radius: 4px;
-        cursor: pointer;
-        width: 100%;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: background-color 0.2s;
-    }
-
-    .btn-reserve:hover {
-        background-color: #f39c12;
-    }
-</style>
-
-<div class="product-breadcrumbs">
-    Książki &gt; @Model.Gatunek &gt; @Model.Tytul
-</div>
-
-<div class="product-page">
-
-    <div class="product-cover-section">
-        @if (!string.IsNullOrEmpty(Model.ImageUrl))
-        {
-            <img src="@Model.ImageUrl" class="product-cover" alt="Okładka @Model.Tytul" />
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - meow 🐾</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
         }
-        else
-        {
-            <img src="https://placehold.co/400x550/234465/FFF?text=@Uri.EscapeDataString(Model.Tytul)" class="product-cover" alt="Okładka zastępcza" />
+        .navbar {
+            background-color: #234465;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-    </div>
+        .navbar-brand {
+            color: white;
+            font-size: 22px;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .navbar-menu {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .navbar-link {
+            color: #e2e8f0;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            transition: color 0.2s;
+        }
+        .navbar-link:hover {
+            color: #e67e22;
+        }
+        .search-container {
+            display: flex;
+            align-items: center;
+            background: white;
+            border-radius: 4px;
+            padding: 4px 10px;
+        }
+        .search-input {
+            border: none;
+            outline: none;
+            padding: 6px;
+            font-size: 14px;
+            width: 200px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 5px;
+            color: #64748b;
+            font-size: 14px;
+        }
+        .cart-badge {
+            background-color: #e67e22;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
 
-    <div class="product-info-section">
-        <h1 style="font-size: 28px; color: #1e293b; margin: 0 0 5px 0; font-weight: 600;">@Model.Tytul</h1>
-        <div style="font-size: 20px; color: #334155; font-weight: 400; margin-bottom: 25px;">@Model.Autor</div>
-
-        <div class="price-container" style="margin-bottom: 25px;">
-            @if (Model.Cena > 0)
-            {
-                <div style="font-size: 42px; font-weight: 700; color: #1e293b; letter-spacing: -0.5px; margin-bottom: 8px;">
-                    @Model.Cena.Value.ToString("F2") zł
-                </div>
-
-                @if (Model.CenaOkladkowa > Model.Cena)
-                {
-                    int rabatProcent = (int)Math.Round((double)((Model.CenaOkladkowa - Model.Cena) / Model.CenaOkladkowa * 100));
-
-                    <div style="font-size: 15px; color: #64748b; display: flex; align-items: center; gap: 8px;">
-                        <span>Cena okładkowa: @Model.CenaOkladkowa.Value.ToString("F2") zł</span>
-                        <span style="background: #fee2e2; color: #ef4444; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 12px;">
-                            👉 Oszczędzasz @rabatProcent%
-                        </span>
-                    </div>
-                }
-            }
-            else
-            {
-                <div style="font-size: 24px; color: #64748b; font-weight: 600;">Pozycja wyłącznie do wypożyczenia</div>
-            }
-        </div>
-
-        <div class="purchase-actions" style="background: #ffffff; border: 1px solid #e2e8f0; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
-            @if (Model.Cena > 0)
-            {
-                if (Model.IloscDoSprzedazy > 0)
-                {
-                    <div style="color: #16a34a; font-weight: 600; font-size: 14px; margin-bottom: 12px;">
-                        ✔ Dostępny w magazynie wysyłkowym (Sztuk: @Model.IloscDoSprzedazy)
-                    </div>
-
-                    <form id="ajax-add-to-cart-form" style="margin: 0;">
-                        <input type="hidden" id="cart-book-id" value="@Model.Id" />
-                        <button type="submit" class="btn-buy">
-                            Dodaj do koszyka
-                        </button>
-                    </form>
-                    
-                    <div id="api-message-container" style="display:none; padding: 15px; border-radius: 6px; margin: 15px 0; font-weight: bold;"></div>
-                }
-                else
-                {
-                    <div style="color: #16a34a; font-weight: 600; font-size: 14px;">❌ Obecnie wyprzedane w sklepie internetowym</div>
-                }
-            }
-            else
-            {
-                <div style="color: #64748b; font-weight: 500; font-size: 14px;">ℹ Ta książka jest dostępna darmowo w ramach abonamentu naszej biblioteki.</div>
-            }
-
-            @if (TempData["Message"] != null)
-            {
-                var msgType = TempData["MessageType"]?.ToString();
-                var bgColor = msgType == "success" ? "#dcfce7" : "#fee2e2";
-                var textColor = msgType == "success" ? "#15803d" : "#ef4444";
-    
-                <div style="padding: 15px; background: @bgColor; color: @textColor; border-radius: 6px; margin: 15px 0; font-weight: bold; border: 1px solid @textColor;">
-                    @TempData["Message"]
-                </div>
-            }
-        </div>
-
-        <div class="library-box" style="padding: 15px; background: #f8fafc; border-radius: 6px; border-left: 4px solid #234465; margin-bottom: 20px;">
-            <h4 style="margin: 0 0 5px 0; color: #234465; font-size: 14px; font-weight: 700;">🏢 Dostępność w placówce stacjonarnej</h4>
-            <div style="font-size: 13px; color: #475569;">
-                Na półkach: <strong>@Model.IloscEgzemplarzy szt.</strong> | Wolnych do wypożyczenia:
-                <strong style="color: @(ViewBag.DostepneDoWypozyczenia > 0 ? "#16a34a" : "#dc2626")">@ViewBag.DostepneDoWypozyczenia szt.</strong>
+    <nav class="navbar">
+        <a class="navbar-brand" href="/Shop">🐾 meow księgarnia</a>
+        <div class="navbar-menu">
+            <div class="search-container">
+                <input type="text" class="search-input" id="searchField" placeholder="Szukaj po tytule lub autorze..." />
             </div>
+            <a class="navbar-link" href="/Shop">Sklep</a>
+            <a class="navbar-link" href="/Shop/Cart">
+                Koszyk <span class="cart-badge cart-status">0</span>
+            </a>
+            <a class="navbar-link" href="/Books">Panel Admina</a>
+            <a class="navbar-link" href="/Account/Profile">Mój Profil</a>
         </div>
+    </nav>
 
-        <div class="reservation-actions" style="background: #ffffff; border: 1px solid #e2e8f0; padding: 20px; border-radius: 6px;">
-            <form action="/Rentals/Zarezerwuj" method="post" style="margin: 0;">
-                @if (ViewBag.WolneEgzemplarze != null && ((List<meow.Models.Egzemplarz>)ViewBag.WolneEgzemplarze).Any())
-                {
-                    <div style="margin-bottom: 12px;">
-                        <label style="display: block; font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 5px;">
-                            Wybierz interesujący Cię egzemplarz stacjonarny:
-                        </label>
-                        <select name="idEgzemplarza" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; background: #f8fafc;" required>
-                            @foreach (var e in (List<meow.Models.Egzemplarz>)ViewBag.WolneEgzemplarze)
-                            {
-                                <option value="@e.IdEgzemplarza">
-                                    Stan: @e.Stan (@e.NumerInwentarzowy)
-                                </option>
-                            }
-                        </select>
-                    </div>
-
-                    <button type="submit" class="btn-reserve">
-                        📖 Zarezerwuj wybrany egzemplarz
-                    </button>
-                }
-                else
-                {
-                    <div style="background: #f1f5f9; color: #475569; padding: 12px; border-radius: 4px; text-align: center; font-size: 14px; font-weight: 500;">
-                        ❌ Brak dostępnych egzemplarzy na półkach do rezerwacji.
-                    </div>
-                }
-            </form>
-        </div>
-
+    <div class="container">
+        @RenderBody()
     </div>
-</div>
 
-<div style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 30px;">
-    <h3 style="color: #234465; font-size: 20px; margin-top: 0; margin-bottom: 15px; font-weight: 700; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">📝 Opis książki</h3>
-    <p style="font-size: 15px; line-height: 1.7; color: #334155; white-space: pre-line; margin: 0;">
-        @(string.IsNullOrEmpty(Model.Opis) ? "Ta pozycja nie posiada jeszcze oficjalnego opisu w systemie." : Model.Opis)
-    </p>
-</div>
+    <footer>
+        <p>&copy; @DateTime.Now.Year - meow system biblioteczno-sklepowy 🐾</p>
+    </footer>
 
-<div style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 30px; font-family: sans-serif;">
-    <h3 style="color: #234465; font-size: 20px; margin-top: 0; margin-bottom: 20px; font-weight: 700; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">📋 Informacje szczegółowe</h3>
-
-    <div style="max-width: 600px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b; width: 40%;">ID produktu:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@Model.Id</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Tytuł:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@Model.Tytul</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Tytuł oryginalny:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(string.IsNullOrEmpty(Model.TytulOryginalny) ? "brak" : Model.TytulOryginalny)</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Seria:</td>
-                <td style="padding: 10px 0; color: #234465; font-weight: 600; text-decoration: underline;">@(string.IsNullOrEmpty(Model.Seria) ? "brak" : Model.Seria)</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Autor:</td>
-                <td style="padding: 10px 0; color: #234465; font-weight: 600; text-decoration: underline;">@Model.Autor</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Tłumaczenie:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(string.IsNullOrEmpty(Model.Tlumaczenie) ? "brak danych" : Model.Tlumaczenie)</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #234465; font-weight: 600; text-decoration: underline;">@(string.IsNullOrEmpty(Model.Wydawnictwo) ? "brak danych" : Model.Wydawnictwo)</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Język wydania:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@Model.JezykWydania</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Język oryginału:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(string.IsNullOrEmpty(Model.JezykOryginalu) ? "brak danych" : Model.JezykOryginalu)</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Liczba stron:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(Model.LiczbaStron.HasValue ? Model.LiczbaStron.Value.ToString() : "brak danych")</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Numer wydania:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@Model.NumerWydania</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Data premiery:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(Model.DataPremiery.HasValue ? Model.DataPremiery.Value.ToString("yyyy-MM-dd") : "brak danych")</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Rok wydania:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@Model.RokWydania</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Data wydania:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(Model.DataWydania.HasValue ? Model.DataWydania.Value.ToString("yyyy-MM-dd") : "brak danych")</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Forma:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">książka</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Okładka:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(string.IsNullOrEmpty(Model.OkladkaTyp) ? "brak danych" : Model.OkladkaTyp)</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Wysokość [mm]:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(Model.WysokoscMm.HasValue ? Model.WysokoscMm.Value.ToString() : "brak")</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Głębokość [mm]:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(Model.GlebokoscMm.HasValue ? Model.GlebokoscMm.Value.ToString() : "brak")</td>
-            </tr>
-            <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 0; color: #64748b;">Szerokość [mm]:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500;">@(Model.SzerokoscMm.HasValue ? Model.SzerokoscMm.Value.ToString() : "brak")</td>
-            </tr>
-            <tr style="border-bottom: none;">
-                <td style="padding: 10px 0; color: #64748b;">EAN:</td>
-                <td style="padding: 10px 0; color: #1e293b; font-weight: 500; font-family: monospace; font-size: 15px;">@(string.IsNullOrEmpty(Model.EAN) ? "brak danych" : Model.EAN)</td>
-            </tr>
-        </table>
-    </div>
-</div>
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const form = document.getElementById("ajax-add-to-cart-form");
-    
-    if (form) {
-        form.addEventListener("submit", function (e) {
-            e.preventDefault(); // Blokujemy tradycyjne przeładowanie strony (Punkt 15)
-
-            const bookId = parseInt(document.getElementById("cart-book-id").value);
-            const messageContainer = document.getElementById("api-message-container");
-
-            // Wysyłamy asynchroniczne żądanie metodą POST do naszego nowego API (Punkt 15 & 17)
-            fetch("/api/cart/add", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ bookId: bookId })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Wyświetlanie dynamicznego komunikatu zwrotnego
-                messageContainer.style.display = "block";
-                messageContainer.innerText = data.message;
-                
-                if (data.success) {
-                    messageContainer.style.background = "#dcfce7";
-                    messageContainer.style.color = "#15803d";
-                    messageContainer.style.border = "1px solid #15803d";
-
-                    // Dynamiczna aktualizacja licznika koszyka w układzie _Layout.cshtml (szukamy klasy .cart-status)
-                    const cartBadge = document.querySelector(".cart-status");
-                    if (cartBadge) {
-                        cartBadge.innerText = data.totalItems;
-                    }
-                    
-                    // Automatyczne ukrycie komunikatu sukcesu po 4 sekundach
-                    setTimeout(() => { messageContainer.style.display = "none"; }, 4000);
-                } else {
-                    messageContainer.style.background = "#fee2e2";
-                    messageContainer.style.color = "#ef4444";
-                    messageContainer.style.border = "1px solid #ef4444";
-                }
-            })
-            .catch(error => {
-                console.error("Błąd podczas komunikacji z API koszyka:", error);
-                messageContainer.style.display = "block";
-                messageContainer.innerText = "Wystąpił nieoczekiwany błąd serwera. Spróbuj ponownie.";
-                messageContainer.style.background = "#fee2e2";
-                messageContainer.style.color = "#ef4444";
-                messageContainer.style.border = "1px solid #ef4444";
-            });
-        });
-    }
-});
-</script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
