@@ -18,7 +18,7 @@
     .btn-save:hover { background: #27ae60; }
     .btn-delete { background: #e74c3c; color: white; line-height: 1.2; }
     .btn-delete:hover { background: #c0392b; }
-    
+
     /* Style dla rozwijanej sekcji egzemplarzy biblioteki */
     .egzemplarze-row { background: #f8fafc; display: none; }
     .egzemplarze-box { padding: 20px; border: 1px solid #e2e8f0; border-radius: 6px; margin: 10px 0; background: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
@@ -35,132 +35,219 @@
         <a href="/Books/Create" style="background: #27ae60; color: white; padding: 10px 18px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 14px; transition: background 0.2s;">➕ Dodaj nowy produkt</a>
     </div>
 
+    <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px;">
+        <input type="text" id="search-api-input" style="width: 100%; max-width: 400px; padding: 10px 15px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 14px;" placeholder="🔍 Szukaj przez API (Wpisz tytuł lub autora)..." />
+        <span id="api-status" style="font-size: 13px; color: #64748b; font-style: italic;"></span>
+    </div>
+
     @if (TempData["Message"] != null)
     {
-        <div style="padding: 14px; margin-bottom: 20px; border-radius: 4px; font-weight: bold; background: @(TempData["MessageType"]?.ToString() == "success" ? "#ddf7e3; color: #1e7e34; border-left: 5px solid #27ae60;" : "#fce8e6; color: #c82333; border-left: 5px solid #e74c3c;")">
-            @TempData["Message"]
-        </div>
+    <div style="padding: 14px; margin-bottom: 20px; border-radius: 4px; font-weight: bold; background: @(TempData["MessageType"]?.ToString() == "success" ? "#ddf7e3; color: #1e7e34; border-left: 5px solid #27ae60;" : "#fce8e6; color: #c82333; border-left: 5px solid #e74c3c;")">
+        @TempData["Message"]
+    </div>
     }
 
     <table class="admin-table">
         <thead>
-            <tr>
-                <th>Okładka</th>
-                <th>Tytuł / Autor</th>
-                <th>Gatunek</th>
-                <th>Magazyn E-Sklep</th>
-                <th>Wypożyczalnia</th>
-                <th style="text-align: center;">Akcje</th>
-            </tr>
+        <tr>
+            <th>Okładka</th>
+            <th>Tytuł / Autor</th>
+            <th>Gatunek</th>
+            <th>Magazyn E-Sklep</th>
+            <th>Wypożyczalnia</th>
+            <th style="text-align: center;">Akcje</th>
+        </tr>
         </thead>
-        <tbody>
-            @foreach (var book in Model)
-            {
-                <tr>
-                    <td>
-                        @if (!string.IsNullOrEmpty(book.ImageUrl))
-                        {
-                            <img src="@book.ImageUrl" class="thumb" />
-                        }
-                        else
-                        {
-                            <div class="thumb" style="display:flex; align-items:center; justify-content:center; font-size:9px; color:#999; text-align:center;">Brak okładki</div>
-                        }
-                    </td>
-                    <td>
-                        <div style="font-weight: 700; color: #234465; font-size: 15px;">@book.Tytul</div>
-                        <div style="color: #64748b; font-size: 13px; margin-top: 2px;">@book.Autor</div>
-                    </td>
-                    <td><span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px; color: #475569; font-size: 13px;">@book.Gatunek</span></td>
-                    <td>
+        <tbody id="main-table-body">
+        @foreach (var book in Model)
+        {
+        <tr id="book-row-@book.Id">
+            <td>
+                @if (!string.IsNullOrEmpty(book.ImageUrl))
+                {
+                <img src="@book.ImageUrl" class="thumb" />
+                }
+                else
+                {
+                <div class="thumb" style="display:flex; align-items:center; justify-content:center; font-size:9px; color:#999; text-align:center;">Brak okładki</div>
+                }
+            </td>
+            <td>
+                <div style="font-weight: 700; color: #234465; font-size: 15px;">@book.Tytul</div>
+                <div style="color: #64748b; font-size: 13px; margin-top: 2px;">@book.Autor</div>
+            </td>
+            <td><span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px; color: #475569; font-size: 13px;">@book.Gatunek</span></td>
+            <td>
                         <span class="badge badge-shop">
                             @(book.Cena > 0 ? $"{book.Cena.Value.ToString("F2")} zł" : "0.00 zł") — @book.IloscDoSprzedazy szt.
                         </span>
-                    </td>
-                    <td>
+            </td>
+            <td>
                         <span class="badge badge-lib" onclick="toggleEgzemplarze(@book.Id)">
                             📚 @book.IloscEgzemplarzy szt. (zarządzaj ↓)
                         </span>
-                    </td>
-                    <td style="text-align: center; white-space: nowrap;">
-                        <a href="/Books/Edit/@book.Id" class="btn-action btn-edit" style="margin-right: 5px;">⚙ Edytuj</a>
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+                <a href="/Books/Edit/@book.Id" class="btn-action btn-edit" style="margin-right: 5px;">⚙ Edytuj</a>
 
-                        <form action="/Books/UsunKsiazkeCalkowicie" method="post" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz CAŁKOWICIE usunąć książkę „@book.Tytul” ze sklepu i biblioteki? Usunięte zostaną też powiązane egzemplarze i historia. Tego kroku nie da się cofnąć! 🐾');">
-                            <input type="hidden" name="id" value="@book.Id" />
-                            <button type="submit" class="btn-action btn-delete">
-                                🗑️ Usuń całkowicie
-                            </button>
-                        </form>
-                    </td>
-                </tr>
+                <form action="/Books/UsunKsiazkeCalkowicie" method="post" style="display:inline;" onsubmit="return confirm('Czy na pewno chcesz CAŁKOWICIE usunąć książkę „@book.Tytul” ze sklepu i biblioteki? Usunięte zostaną też powiązane egzemplarze i historia. Tego kroku nie da się cofnąć! 🐾');">
+                    <input type="hidden" name="id" value="@book.Id" />
+                    <button type="submit" class="btn-action btn-delete">
+                        🗑️ Usuń całkowicie
+                    </button>
+                </form>
+            </td>
+        </tr>
 
-                <tr id="egz-row-@book.Id" class="egzemplarze-row">
-                    <td colspan="6">
-                        <div class="egzemplarze-box">
-                            <h4 style="margin-top: 0; margin-bottom: 12px; color: #234465; font-size: 14px;">📋 Fizyczne egzemplarze w bibliotece dla: <em>"@book.Tytul"</em></h4>
-                            
-                            @if (!book.Egzemplarze.Any())
+        <tr id="egz-row-@book.Id" class="egzemplarze-row">
+            <td colspan="6">
+                <div class="egzemplarze-box">
+                    <h4 style="margin-top: 0; margin-bottom: 12px; color: #234465; font-size: 14px;">📋 Fizyczne egzemplarze w bibliotece dla: <em>"@book.Tytul"</em></h4>
+
+                    @if (!book.Egzemplarze.Any())
+                    {
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0;">Brak zarejestrowanych sztuk w systemie wypożyczalni dla tej książki.</p>
+                    }
+                    else
+                    {
+                    @foreach (var egz in book.Egzemplarze)
+                    {
+                    bool czyWypozyczony = ((List<int>)ViewBag.AktywneWypozyczenia).Contains(egz.IdEgzemplarza);
+
+                    <div class="egz-item">
+                        <div class="egz-info">
+                            Kod: <strong>@egz.NumerInwentarzowy</strong>
+                            @if (czyWypozyczony)
                             {
-                                <p style="color: #94a3b8; font-size: 13px; margin: 0;">Brak zarejestrowanych sztuk w systemie wypożyczalni dla tej książki.</p>
+                            <span style="color: #ef4444; font-weight: bold; margin-left: 10px;">🔴 Aktualnie wypożyczona</span>
                             }
                             else
                             {
-                                @foreach (var egz in book.Egzemplarze)
-                                {
-                                    bool czyWypozyczony = ((List<int>)ViewBag.AktywneWypozyczenia).Contains(egz.IdEgzemplarza);
-                                    
-                                    <div class="egz-item">
-                                        <div class="egz-info">
-                                            Kod: <strong>@egz.NumerInwentarzowy</strong> 
-                                            @if (czyWypozyczony)
-                                            {
-                                                <span style="color: #ef4444; font-weight: bold; margin-left: 10px;">🔴 Aktualnie wypożyczona</span>
-                                            }
-                                            else
-                                            {
-                                                <span style="color: #10b981; font-weight: bold; margin-left: 10px;">🟢 Na półce</span>
-                                            }
-                                        </div>
-
-                                        <div style="display: flex; align-items: center; gap: 10px;">
-                                            <form action="/Books/ZapiszEgzemplarz" method="post" style="margin: 0; display: flex; gap: 6px;">
-                                                <input type="hidden" name="idEgzemplarza" value="@egz.IdEgzemplarza" />
-                                                <select name="stan" class="select-stan">
-                                                    @if (ViewBag.Stany != null)
-                                                    {
-                                                        foreach (var st in ViewBag.Stany)
-                                                        {
-                                                            <option value="@st" selected="@(st == egz.Stan ? "selected" : null)">@st</option>
-                                                        }
-                                                    }
-                                                </select>
-                                                <button type="submit" class="btn-action btn-save">Zapisz stan</button>
-                                            </form>
-
-                                            <a href="/Books/UsunEgzemplarz/@egz.IdEgzemplarza" 
-                                               class="btn-action btn-delete" 
-                                               onclick="return confirm('Czy na pewno chcesz usunąć ten pojedynczy fizyczny egzemplarz biblioteczny?');">
-                                                Usuń sztukę
-                                            </a>
-                                        </div>
-                                    </div>
-                                }
+                            <span style="color: #10b981; font-weight: bold; margin-left: 10px;">🟢 Na półce</span>
                             }
                         </div>
-                    </td>
-                </tr>
-            }
+
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <form action="/Books/ZapiszEgzemplarz" method="post" style="margin: 0; display: flex; gap: 6px;">
+                                <input type="hidden" name="idEgzemplarza" value="@egz.IdEgzemplarza" />
+                                <select name="stan" class="select-stan">
+                                    @if (ViewBag.Stany != null)
+                                    {
+                                    foreach (var st in ViewBag.Stany)
+                                    {
+                                    <option value="@st" selected="@(st == egz.Stan ? "selected" : null)">@st</option>
+                                    }
+                                    }
+                                </select>
+                                <button type="submit" class="btn-action btn-save">Zapisz stan</button>
+                            </form>
+
+                            <a href="/Books/UsunEgzemplarz/@egz.IdEgzemplarza"
+                               class="btn-action btn-delete"
+                               onclick="return confirm('Czy na pewno chcesz usunąć ten pojedynczy fizyczny egzemplarz biblioteczny?');">
+                                Usuń sztukę
+                            </a>
+                        </div>
+                    </div>
+                    }
+                    }
+                </div>
+            </td>
+        </tr>
+        }
         </tbody>
     </table>
 </div>
 
 <script>
+    // 1. Logika rozwijania szczegółów egzemplarzy
     function toggleEgzemplarze(bookId) {
         var row = document.getElementById("egz-row-" + bookId);
+        if (!row) return;
         if (row.style.display === "table-row") {
             row.style.display = "none";
         } else {
             row.style.display = "table-row";
         }
     }
+
+    // Zmienna przechowująca kopię zapasową początkowego HTML-a wygenerowanego przez C# (Razor)
+    const originalTableHtml = document.getElementById('main-table-body').innerHTML;
+
+    // 2. PRAWDZIWY FETCH DO TWOJEGO BOOKS_API_CONTROLLER
+    document.getElementById('search-api-input').addEventListener('input', async function(e) {
+        const searchTerm = e.target.value.toLowerCase().trim();
+        const tableBody = document.getElementById('main-table-body');
+        const statusSpan = document.getElementById('api-status');
+
+        // Jeśli pole jest puste, przywracamy domyślny widok wygenerowany przez serwer C#
+        if (searchTerm === '') {
+            tableBody.innerHTML = originalTableHtml;
+            statusSpan.innerText = "";
+            return;
+        }
+
+        statusSpan.innerText = "⚡ Odpytywanie API...";
+
+        try {
+            // Wywołanie Twojej metody [HttpGet] z BooksApiController!
+            const response = await fetch('/api/booksapi');
+            if (!response.ok) throw new Error("Błąd pobierania");
+
+            // Serwer zwraca tablicę obiektów JSON
+            const books = await response.json();
+
+            // Filtrujemy dane zwrócone prosto z bazy danych
+            const filtered = books.filter(b => {
+                const tytul = (b.tytul || b.Tytul || '').toLowerCase();
+                const autor = (b.autor || b.Autor || '').toLowerCase();
+                return tytul.includes(searchTerm) || autor.includes(searchTerm);
+            });
+
+            // Czyścimy tabelę, by wstawić nowe wiersze pobrane z API
+            tableBody.innerHTML = '';
+
+            if (filtered.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:#64748b;">Brak wyników w bazie API dla frazy: "${e.target.value}"</td></tr>`;
+                statusSpan.innerText = "✔ Ukończono";
+                return;
+            }
+
+            // Mapujemy wyniki z JSON na czyste wiersze HTML na żywo
+            filtered.forEach(book => {
+                const bookId = book.id || book.Id;
+                const tytul = book.tytul || book.Tytul;
+                const autor = book.autor || book.Autor;
+                const gatunek = book.gatunek || book.Gatunek || "Brak";
+                const cena = book.cena || book.Cena || 0;
+                const iloscSklep = book.iloscDoSprzedazy || book.IloscDoSprzedazy || 0;
+                const iloscLib = book.iloscEgzemplarzy || book.IloscEgzemplarzy || 0;
+                const imgUrl = book.imageUrl || book.ImageUrl;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${imgUrl ? `<img src="${imgUrl}" class="thumb" />` : `<div class="thumb" style="display:flex; align-items:center; justify-content:center; font-size:9px; color:#999; text-align:center;">Brak okładki</div>`}</td>
+                    <td>
+                        <div style="font-weight: 700; color: #234465; font-size: 15px;">${tytul}</div>
+                        <div style="color: #64748b; font-size: 13px; margin-top: 2px;">${autor}</div>
+                    </td>
+                    <td><span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px; color: #475569; font-size: 13px;">${gatunek}</span></td>
+                    <td><span class="badge badge-shop">${parseFloat(cena).toFixed(2)} zł — ${iloscSklep} szt.</span></td>
+                    <td>
+                        <span class="text-muted" style="font-size:12px;">Zaloguj się do API, aby zarządzać egzemplarzami</span>
+                    </td>
+                    <td style="text-align: center; white-space: nowrap;">
+                        <a href="/Books/Edit/${bookId}" class="btn-action btn-edit" style="margin-right: 5px;">⚙ Edytuj</a>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            statusSpan.innerText = `✔ Znaleziono: ${filtered.length}`;
+
+        } catch (err) {
+            console.error(err);
+            statusSpan.innerText = "❌ Błąd komunikacji z API";
+        }
+    });
 </script>
