@@ -6,6 +6,8 @@ using System.Linq;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace meow.Controllers
 {
@@ -13,9 +15,8 @@ namespace meow.Controllers
     {
         private readonly LibraryDbContext _context;
         private readonly IMemoryCache _cache; 
-        private readonly IEmailService _emailService; // Pole zadeklarowane poprawnie
+        private readonly IEmailService _emailService;
 
-        // Usługa IEmailService wstrzyknięta przez konstruktor
         public ShopController(LibraryDbContext context, IMemoryCache cache, IEmailService emailService)
         {
             _context = context;
@@ -139,7 +140,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 3a. DEDYKOWANY ENDPOINT API: ASYNCHRONICZNY KOSZYK (Punkt 17)
+        // 3a. DEDYKOWANY ENDPOINT API: ASYNCHRONICZNY KOSZYK
         // ==========================================================
         [HttpPost("api/cart/add")]
         public IActionResult AddToCartApi([FromBody] CartRequest request)
@@ -183,7 +184,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 4. KOSZYK (Z INTEGRACJĄ KOREKTY STANU )
+        // 4. KOSZYK (Z INTEGRACJĄ KOREKTY STANU)
         // ==========================================================
         public IActionResult Cart()
         {
@@ -309,7 +310,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 7. METODA DOSTAWY (ZAPISZ DANE DO SESJI!)
+        // 7. METODA DOSTAWY
         // ==========================================================
         [HttpPost]
         public IActionResult Delivery(string typ_odbiorcy, string imie, string? nazwisko, string? nazwa_firmy,
@@ -339,7 +340,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 8. OSTATECZNE FINALIZOWANIE ZAMÓWIENIA (Z WYSOŁANIEM PRAWDZIWEGO E-MAILA)
+        // 8. OSTATECZNE FINALIZOWANIE ZAMÓWIENIA
         // ==========================================================
         [HttpPost]
         public IActionResult FinalizeOrder(string metodaDostawy, decimal kosztDostawy, string metodaPlatnosci,
@@ -429,7 +430,6 @@ namespace meow.Controllers
                     _context.SaveChanges();
                     transaction.Commit();
 
-                    // PUNKT 13: MAILING (Prawdziwa wysyłka MailKit + Logowanie)
                     try
                     {
                         var daneKlienta = _context.Klienci.FirstOrDefault(k => k.IdKlienta == finalKlientId);
@@ -448,12 +448,10 @@ Jak tylko przesyłka ruszy w drogę, poinformujemy Cię o tym.
 Mruczącego dnia,
 Zespół meow 🐾";
 
-                        // 1. Logowanie testowe do pliku
                         string path = Path.Combine(AppContext.BaseDirectory, "sent_emails.txt");
                         string logLogiki = $"\n--- WYSOŁANO E-MAIL STMP ---\nDo: {emailOdbiorcy}\nTemat: Potwierdzenie zamówienia {wspólnyNumerPaczki} 🐾\nTreść:\nCześć {imieKlienta}!\n{trescMaila}\n-------------------------\n";
                         System.IO.File.AppendAllText(path, logLogiki);
                         
-                        // 2. Wysyłanie prawdziwego maila w tle, aby zapobiec lagom na interfejsie
                         Task.Run(async () => 
                         {
                             await _emailService.SendOrderEmailAsync(emailOdbiorcy, imieKlienta, wspólnyNumerPaczki, trescMaila);
@@ -461,7 +459,7 @@ Zespół meow 🐾";
                     }
                     catch (Exception)
                     {
-                        // Wyłapanie błędów sieciowych mailingu, aby nie psuć pomyślnego zakupu
+                        // Wyłapanie błędów sieciowych
                     }
 
                     HttpContext.Session.Remove("Koszyk");

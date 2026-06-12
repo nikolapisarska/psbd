@@ -5,20 +5,19 @@ using System;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
-using System.Threading.Tasks; // <-- DODANA PRZESTRZEŃ NAZW
+using System.Threading.Tasks;
 
 namespace meow.Controllers
 {
     public class RentalsController : Controller
     {
         private readonly LibraryDbContext _context;
-        private readonly IEmailService _emailService; // <-- DODANE POLE USŁUGI E-MAIL
+        private readonly IEmailService _emailService;
 
-        // Zmodyfikowany konstruktor o wstrzykiwanie usługi IEmailService
         public RentalsController(LibraryDbContext context, IEmailService emailService)
         {
             _context = context;
-            _emailService = emailService; // <-- PRZYPISANIE WARTOŚCI POLE
+            _emailService = emailService;
         }
 
         // ==========================================================
@@ -161,13 +160,40 @@ namespace meow.Controllers
             if (HttpContext.Session.GetString("UserRole") != "Admin")
                 return RedirectToAction("Login", "Account");
 
-            var wypozyczenie = _context.Wypozyczenia.Find(id_wypozyczenie);
+            // Zmiana: Dołączamy Klienta oraz Egzemplarz->Book, aby mieć dane do wysyłki maila
+            var wypozyczenie = _context.Wypozyczenia
+                .Include(w => w.Klient)
+                .Include(w => w.Egzemplarz).ThenInclude(e => e!.Book)
+                .FirstOrDefault(w => w.IdWypozyczenie == id_wypozyczenie);
+
             if (wypozyczenie == null) return RedirectToAction("Returns");
 
             wypozyczenie.DataWypozyczenia = DateTime.Today;
-            wypozyczenie.DataPlanowanegoZwrotu = DateTime.Today.AddDays(30);
+            DateTime terminZwrotu = DateTime.Today.AddDays(30);
+            wypozyczenie.DataPlanowanegoZwrotu = terminZwrotu;
 
             _context.SaveChanges();
+
+            // INTEGRACJA: POWIADOMIENIE E-MAIL O WYDANIU KSIĄŻKI
+            try
+            {
+                if (wypozyczenie.Klient != null)
+                {
+                    string emailOdbiorcy = wypozyczenie.Klient.Email ?? "klient@meow-ksiegarnia.pl";
+                    string imieKlienta = wypozyczenie.Klient.Imie ?? "Czytelniku";
+                    string tytulKsiazki = wypozyczenie.Egzemplarz?.Book?.Tytul ?? "Wypożyczona książka";
+
+                    // Wywołanie asynchroniczne w osobnym wątku roboczym
+                    Task.Run(async () =>
+                    {
+                        await _emailService.SendLoanConfirmationEmailAsync(emailOdbiorcy, imieKlienta, tytulKsiazki, terminZwrotu);
+                    });
+                }
+            }
+            catch (Exception)
+            {
+                // Wyłapujemy błędy poczty, by ewentualne problemy z siecią nie cofnęły operacji w bazie danych
+            }
 
             TempData["Message"] = "Książka została pomyślnie wydana klientowi. Termin zwrotu ustawiono na 30 dni! 🐾";
             TempData["MessageType"] = "success";
@@ -242,6 +268,28 @@ namespace meow.Controllers
 
             _context.Wypozyczenia.Add(nowaRezerwacja);
             _context.SaveChanges();
+
+            // INTEGRACJA: AUTOMATYCZNY MAILING PO REZERWACJI ONLINE
+            try
+            {
+                var klient = _context.Klienci.FirstOrDefault(k => k.IdKlienta == idKlienta.Value);
+                if (klient != null)
+                {
+                    string emailOdbiorcy = klient.Email ?? "klient@meow-ksiegarnia.pl";
+                    string imieKlienta = klient.Imie ?? "Czytelniku";
+                    string tytulKsiazki = egzemplarz.Book?.Tytul ?? "Nieznany tytuł";
+                    string nrInwentarzowy = egzemplarz.NumerInwentarzowy ?? "Brak";
+
+                    Task.Run(async () =>
+                    {
+                        await _emailService.SendReservationEmailAsync(emailOdbiorcy, imieKlienta, tytulKsiazki, nrInwentarzowy, dataNaOdbior);
+                    });
+                }
+            }
+            catch (Exception)
+            {
+                // Wyłapujemy błędy sieciowe SMTP, aby awaria poczty nie zepsuła rezerwacji
+            }
 
             TempData["Message"] = $"🐾 Sukces! Egzemplarz (#{egzemplarz.NumerInwentarzowy}) został zarezerwowany. Zapraszamy po odbiór do dnia: {dataNaOdbior.ToString("dd.MM.yyyy")} r. do godziny 18:00.";
             TempData["MessageType"] = "success";
@@ -330,7 +378,6 @@ namespace meow.Controllers
                 return RedirectToAction("Returns");
             }
 
-            // Dołączamy profil klienta, aby móc pobrać jego adres e-mail i imię do wysyłki poczty
             var calaPaczka = _context.Zamowienia
                 .Include(z => z.Klient)
                 .Where(z => z.NumerSledzenia == trackingNumber)
@@ -350,7 +397,6 @@ namespace meow.Controllers
 
             _context.SaveChanges();
 
-            // INTEGRACJA: AUTOMATYCZNY MAILING W TLE PO ZMIANIE STATUSU PACZKI
             try
             {
                 var pierwszeZamowienie = calaPaczka.First();
@@ -359,7 +405,6 @@ namespace meow.Controllers
                     string emailOdbiorcy = pierwszeZamowienie.Klient.Email ?? "klient@meow-ksiegarnia.pl";
                     string imieKlienta = pierwszeZamowienie.Klient.Imie ?? "Kliencie";
 
-                    // Wywołanie wcześniej przygotowanej metody wysyłającej info o zmianie statusu (w wątku w tle)
                     Task.Run(async () =>
                     {
                         await _emailService.SendStatusUpdateEmailAsync(emailOdbiorcy, imieKlienta, trackingNumber, "Wysłane");
@@ -368,7 +413,7 @@ namespace meow.Controllers
             }
             catch (Exception)
             {
-                // Wyłapujemy błędy sieciowe usługi e-mail, aby awaria poczty nie wyrzuciła błędu w panelu administratora
+                // Wyłapujemy błędy sieciowe
             }
 
             TempData["Message"] = $"Status zaktualizowany: Zbiorcza paczka {trackingNumber} została przekazana kurierowi! 📦🐾 Klient otrzymał powiadomienie e-mail.";

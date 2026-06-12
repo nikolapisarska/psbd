@@ -2,6 +2,14 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,22 +28,17 @@ builder.Services.AddDbContext<meow.Models.LibraryDbContext>(options =>
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
-
-// [PUNKT 16 - KONSUMPCJA API] Rejestracja fabryki klientów HTTP (Wykład 5: Protokół HTTP)
 builder.Services.AddHttpClient();
-
-// [PUNKT 12 - LOKALIZACJA] Konfiguracja lokalizacji i ścieżki do zasobów (Wykład 13-15)
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 
 builder.Services.Configure<RequestLocalizationOptions>(options =>
 {
     var supportedCultures = new[] { "pl", "en" };
-    options.SetDefaultCulture(supportedCultures[0]) // Domyślnie polski
+    options.SetDefaultCulture(supportedCultures[0])
            .AddSupportedCultures(supportedCultures)
            .AddSupportedUICultures(supportedCultures);
     
-    // Pozwalamy na przekazywanie języka w query stringu (?culture=en) lub ciasteczku
-    options.RequestCultureProviders.Insert(0, new Microsoft.AspNetCore.Localization.QueryStringRequestCultureProvider());
+    options.RequestCultureProviders.Insert(0, new QueryStringRequestCultureProvider());
 });
 
 builder.Services.AddSession(options => {
@@ -93,13 +96,11 @@ using (var scope = app.Services.CreateScope())
 // ==========================================================
 // 4. KONFIGURACJA POTOKU ŻĄDAŃ HTTP (MIDDLEWARE PIPELINE)
 // ==========================================================
-// [PUNKT 12 - LOKALIZACJA] Uruchomienie middleware lokalizacji PRZED routingiem i statycznymi plikami
 var localizationOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<RequestLocalizationOptions>>().Value;
 app.UseRequestLocalization(localizationOptions);
 
 app.UseStaticFiles();
 app.UseRouting();
-
 app.UseSession();          
 app.UseAuthorization();    
 
@@ -114,9 +115,12 @@ app.Run();
 // ==========================================================
 public interface IEmailService
 {
+    
     Task SendWelcomeEmailAsync(string toEmail, string userName);
     Task SendOrderEmailAsync(string toEmail, string userName, string orderNumber, string bodyText);
-    Task SendStatusUpdateEmailAsync(string toEmail, string userName, string orderNumber, string newStatus); // <-- NOWA METODA
+    Task SendStatusUpdateEmailAsync(string toEmail, string userName, string orderNumber, string newStatus);
+    Task SendReservationEmailAsync(string toEmail, string userName, string bookTitle, string inventoryNumber, DateTime deadline); 
+    Task SendLoanConfirmationEmailAsync(string toEmail, string userName, string bookTitle, DateTime dueDate);
 }
 
 public class SmtpEmailService : IEmailService
@@ -137,7 +141,7 @@ public class SmtpEmailService : IEmailService
         };
         message.Body = bodyBuilder.ToMessageBody();
 
-        using (var client = new MailKit.Net.Smtp.SmtpClient())
+        using (var client = new SmtpClient())
         {
             try
             {
@@ -167,7 +171,7 @@ public class SmtpEmailService : IEmailService
         };
         message.Body = bodyBuilder.ToMessageBody();
 
-        using (var client = new MailKit.Net.Smtp.SmtpClient())
+        using (var client = new SmtpClient())
         {
             try
             {
@@ -184,7 +188,6 @@ public class SmtpEmailService : IEmailService
         }
     }
 
-    // IMPLEMENTACJA NOWEJ METODY POWIADOMIENIA O ZMIANIE STATUSU
     public async Task SendStatusUpdateEmailAsync(string toEmail, string userName, string orderNumber, string newStatus)
     {
         var message = new MimeMessage();
@@ -207,7 +210,7 @@ public class SmtpEmailService : IEmailService
         };
         message.Body = bodyBuilder.ToMessageBody();
 
-        using (var client = new MailKit.Net.Smtp.SmtpClient())
+        using (var client = new SmtpClient())
         {
             try
             {
@@ -220,6 +223,85 @@ public class SmtpEmailService : IEmailService
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila o statusie: {ex.Message}");
+            }
+        }
+    }
+
+    // IMPLEMENTACJA NOWEJ METODY POWIADOMIENIA O REZERWACJI STACJONARNEJ
+    public async Task SendReservationEmailAsync(string toEmail, string userName, string bookTitle, string inventoryNumber, DateTime deadline)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("Biblioteka Meow 🐾", "ksiegarniameow@gmail.com"));
+        message.To.Add(new MailboxAddress(userName, toEmail));
+        message.Subject = "Potwierdzenie rezerwacji książki stacjonarnej 🐾";
+
+        var bodyBuilder = new BodyBuilder
+        {
+            HtmlBody = $@"
+                <h2>Cześć {userName}!</h2>
+                <p>Pomyślnie zarezerwowałeś online egzemplarz książki w naszej bibliotece stacjonarnej.</p>
+                <p><strong>Szczegóły rezerwacji:</strong></p>
+                <ul>
+                    <li><strong>Tytuł:</strong> „{bookTitle}”</li>
+                    <li><strong>Numer inwentarzowy:</strong> #{inventoryNumber}</li>
+                </ul>
+                <p>🐾 Masz <strong>3 dni na odbiór</strong> książki w naszej placówce stacjonarnej.</p>
+                <p>Czekamy na Ciebie do dnia: <strong>{deadline:dd.MM.yyyy} r. do godziny 18:00</strong>.</p>
+                <br/>
+                <p>Mruczącego dnia,<br/>Zespół meow 🐾</p>"
+        };
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using (var client = new SmtpClient())
+        {
+            try
+            {
+                await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync("ksiegarniameow@gmail.com", "kqxcgikrfdmpzrkv");
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+                Console.WriteLine($"🚀 Mail z potwierdzeniem rezerwacji wysłany przez MailKit do: {toEmail}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila rezerwacji: {ex.Message}");
+            }
+        }
+    }
+    public async Task SendLoanConfirmationEmailAsync(string toEmail, string userName, string bookTitle, DateTime dueDate)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("Biblioteka Meow 🐾", "ksiegarniameow@gmail.com"));
+        message.To.Add(new MailboxAddress(userName, toEmail));
+        message.Subject = "Potwierdzenie odebrania książki z biblioteki 🐾";
+
+        var bodyBuilder = new BodyBuilder
+        {
+            HtmlBody = $@"
+            <h2>Cześć {userName}!</h2>
+            <p>Książka została pomyślnie wydana w naszej placówce stacjonarnej.</p>
+            <p><strong>Wypożyczona pozycja:</strong> „{bookTitle}”</p>
+            <p>🐾 Czas na czytanie to standardowe 30 dni. Regulaminowy termin zwrotu upływa dnia:</p>
+            <h3><strong>{dueDate:dd.MM.yyyy} r.</strong></h3>
+            <p>Pamiętaj o terminowym zwrocie, aby uniknąć naliczania opłat karnych (0,50 zł za każdy dzień zwłoki).</p>
+            <br/>
+            <p>Życzymy mruczącej i udanej lektury!,<br/>Zespół meow 🐾</p>"
+        };
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using (var client = new MailKit.Net.Smtp.SmtpClient())
+        {
+            try
+            {
+                await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync("ksiegarniameow@gmail.com", "kqxcgikrfdmpzrkv");
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+                Console.WriteLine($"🚀 Mail z potwierdzeniem wydania książki wysłany do: {toEmail}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila wydania: {ex.Message}");
             }
         }
     }
