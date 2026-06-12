@@ -109,12 +109,14 @@ app.MapControllerRoute(
 
 app.Run();
 
-// ==========================================================
+//==========================================================
 // 5. DEFINICJE TYPÓW (INTERFEJSY I KLASY)
 // ==========================================================
 public interface IEmailService
 {
     Task SendWelcomeEmailAsync(string toEmail, string userName);
+    Task SendOrderEmailAsync(string toEmail, string userName, string orderNumber, string bodyText);
+    Task SendStatusUpdateEmailAsync(string toEmail, string userName, string orderNumber, string newStatus); // <-- NOWA METODA
 }
 
 public class SmtpEmailService : IEmailService
@@ -148,6 +150,76 @@ public class SmtpEmailService : IEmailService
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila: {ex.Message}");
+            }
+        }
+    }
+
+    public async Task SendOrderEmailAsync(string toEmail, string userName, string orderNumber, string bodyText)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("Biblioteka Meow 🐾", "ksiegarniameow@gmail.com"));
+        message.To.Add(new MailboxAddress(userName, toEmail));
+        message.Subject = $"Potwierdzenie zamówienia {orderNumber} 🐾";
+
+        var bodyBuilder = new BodyBuilder
+        {
+            HtmlBody = $"<h2>Cześć {userName}!</h2><p>{bodyText.Replace("\n", "<br/>")}</p>"
+        };
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using (var client = new MailKit.Net.Smtp.SmtpClient())
+        {
+            try
+            {
+                await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync("ksiegarniameow@gmail.com", "kqxcgikrfdmpzrkv");
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+                Console.WriteLine($"🚀 Mail z potwierdzeniem zamówienia {orderNumber} wysłany przez MailKit do: {toEmail}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila zamówienia: {ex.Message}");
+            }
+        }
+    }
+
+    // IMPLEMENTACJA NOWEJ METODY POWIADOMIENIA O ZMIANIE STATUSU
+    public async Task SendStatusUpdateEmailAsync(string toEmail, string userName, string orderNumber, string newStatus)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("Biblioteka Meow 🐾", "ksiegarniameow@gmail.com"));
+        message.To.Add(new MailboxAddress(userName, toEmail));
+        message.Subject = $"Zmiana statusu zamówienia {orderNumber} 🐾";
+
+        string statusText = newStatus == "Wysłane" || newStatus == "Nadane" 
+            ? $"Twoja paczka o numerze śledzenia <strong>{orderNumber}</strong> została właśnie nadana i ruszyła w drogę! 🚀" 
+            : $"Status Twojego zamówienia o numerze śledzenia <strong>{orderNumber}</strong> zmienił się na: <strong>{newStatus}</strong>.";
+
+        var bodyBuilder = new BodyBuilder
+        {
+            HtmlBody = $@"
+                <h2>Cześć {userName}!</h2>
+                <p>Mamy dla Ciebie nowe informacje dotyczące Twoich zakupów w e-księgarni meow.</p>
+                <p>{statusText}</p>
+                <br/>
+                <p>Mruczącego dnia,<br/>Zespół meow 🐾</p>"
+        };
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using (var client = new MailKit.Net.Smtp.SmtpClient())
+        {
+            try
+            {
+                await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync("ksiegarniameow@gmail.com", "kqxcgikrfdmpzrkv");
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+                Console.WriteLine($"🚀 Mail ze zmianą statusu dla {orderNumber} wysłany przez MailKit do: {toEmail}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila o statusie: {ex.Message}");
             }
         }
     }

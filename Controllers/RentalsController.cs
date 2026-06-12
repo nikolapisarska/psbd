@@ -5,20 +5,24 @@ using System;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
 using System.Collections.Generic;
+using System.Threading.Tasks; // <-- DODANA PRZESTRZEŃ NAZW
 
 namespace meow.Controllers
 {
     public class RentalsController : Controller
     {
         private readonly LibraryDbContext _context;
+        private readonly IEmailService _emailService; // <-- DODANE POLE USŁUGI E-MAIL
 
-        public RentalsController(LibraryDbContext context)
+        // Zmodyfikowany konstruktor o wstrzykiwanie usługi IEmailService
+        public RentalsController(LibraryDbContext context, IEmailService emailService)
         {
             _context = context;
+            _emailService = emailService; // <-- PRZYPISANIE WARTOŚCI POLE
         }
 
         // ==========================================================
-        // 1. FORMULARZ METODY GET (DODAWANIE WYPOŻYCZENIA PRZEZ ADMINA)
+        // 1. FORMULARZ METEDY GET (DODAWANIE WYPOŻYCZENIA PRZEZ ADMINA)
         // ==========================================================
         [HttpGet]
         [MeowAuthorize("Admin")] 
@@ -255,7 +259,6 @@ namespace meow.Controllers
             if (HttpContext.Session.GetString("UserRole") != "Admin")
                 return RedirectToAction("Login", "Account");
 
-            // Inteligentne mapowanie nazw pól z widoków HTML
             if (data_zwrotu == DateTime.MinValue && dataZwrotu.HasValue) data_zwrotu = dataZwrotu.Value;
             if (data_zwrotu == DateTime.MinValue && data.HasValue) data_zwrotu = data.Value;
             if (data_zwrotu == DateTime.MinValue) data_zwrotu = DateTime.Today;
@@ -311,7 +314,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 8. ZMIANA STATUSU: ZATWIERDZENIE WYSYŁKI PACZKI SKLEPOWEJ
+        // 8. ZMIANA STATUSU: ZATWIERDZENIE WYSYŁKI PACZKI SKLEPOWEJ (+ NOWOŚĆ: WYWOLANIE USLUGI E-MAIL)
         // ==========================================================
         [HttpPost]
         [MeowAuthorize("Admin")] 
@@ -327,7 +330,9 @@ namespace meow.Controllers
                 return RedirectToAction("Returns");
             }
 
+            // Dołączamy profil klienta, aby móc pobrać jego adres e-mail i imię do wysyłki poczty
             var calaPaczka = _context.Zamowienia
+                .Include(z => z.Klient)
                 .Where(z => z.NumerSledzenia == trackingNumber)
                 .ToList();
 
@@ -345,7 +350,28 @@ namespace meow.Controllers
 
             _context.SaveChanges();
 
-            TempData["Message"] = $"Status zaktualizowany: Zbiorcza paczka {trackingNumber} została przekazana kurierowi! 📦🐾";
+            // INTEGRACJA: AUTOMATYCZNY MAILING W TLE PO ZMIANIE STATUSU PACZKI
+            try
+            {
+                var pierwszeZamowienie = calaPaczka.First();
+                if (pierwszeZamowienie.Klient != null)
+                {
+                    string emailOdbiorcy = pierwszeZamowienie.Klient.Email ?? "klient@meow-ksiegarnia.pl";
+                    string imieKlienta = pierwszeZamowienie.Klient.Imie ?? "Kliencie";
+
+                    // Wywołanie wcześniej przygotowanej metody wysyłającej info o zmianie statusu (w wątku w tle)
+                    Task.Run(async () =>
+                    {
+                        await _emailService.SendStatusUpdateEmailAsync(emailOdbiorcy, imieKlienta, trackingNumber, "Wysłane");
+                    });
+                }
+            }
+            catch (Exception)
+            {
+                // Wyłapujemy błędy sieciowe usługi e-mail, aby awaria poczty nie wyrzuciła błędu w panelu administratora
+            }
+
+            TempData["Message"] = $"Status zaktualizowany: Zbiorcza paczka {trackingNumber} została przekazana kurierowi! 📦🐾 Klient otrzymał powiadomienie e-mail.";
             TempData["MessageType"] = "success";
 
             return RedirectToAction("Returns");

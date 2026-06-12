@@ -13,11 +13,14 @@ namespace meow.Controllers
     {
         private readonly LibraryDbContext _context;
         private readonly IMemoryCache _cache; 
+        private readonly IEmailService _emailService; // Pole zadeklarowane poprawnie
 
-        public ShopController(LibraryDbContext context, IMemoryCache cache)
+        // Usługa IEmailService wstrzyknięta przez konstruktor
+        public ShopController(LibraryDbContext context, IMemoryCache cache, IEmailService emailService)
         {
             _context = context;
             _cache = cache; 
+            _emailService = emailService;
         }
 
         // ==========================================================
@@ -27,28 +30,22 @@ namespace meow.Controllers
         {
             List<Book> booksResult;
 
-
             if (string.IsNullOrEmpty(gatunek) && string.IsNullOrEmpty(sortowanie) && string.IsNullOrEmpty(fraza))
             {
                 string cacheKey = "allBooksMainList";
-
         
                 if (!_cache.TryGetValue(cacheKey, out booksResult))
                 {
-              
                     booksResult = _context.Books.ToList();
-
          
                     var cacheEntryOptions = new MemoryCacheEntryOptions()
                         .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
-
        
                     _cache.Set(cacheKey, booksResult, cacheEntryOptions);
                 }
             }
             else
             {
-                
                 var query = _context.Books.AsQueryable();
 
                 if (!string.IsNullOrEmpty(fraza))
@@ -74,7 +71,6 @@ namespace meow.Controllers
                 booksResult = query.ToList();
             }
 
-
             ViewBag.WybranyGatunek = string.IsNullOrEmpty(fraza) && string.IsNullOrEmpty(gatunek)
                 ? "Wszystkie pozycje w e-księgarni meow 🐾"
                 : (!string.IsNullOrEmpty(gatunek) ? $"Książki z kategorii: {gatunek}" : $"Wyniki wyszukiwania dla frazy: „{fraza}”");
@@ -85,7 +81,6 @@ namespace meow.Controllers
             return View(booksResult); 
         }
         
-
         // ==========================================================
         // 2. KARTA SZCZEGÓŁÓW PRODUKTU
         // ==========================================================
@@ -179,7 +174,6 @@ namespace meow.Controllers
             cartItems.Add(request.BookId);
             HttpContext.Session.SetString("Koszyk", string.Join(",", cartItems));
 
-            // Zwracamy obiekt JSON z nowym łącznym stanem koszyka (Punkt 17)
             return Json(new
             {
                 success = true,
@@ -198,7 +192,6 @@ namespace meow.Controllers
 
             var bookIds = cartString.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList();
             var booksInCart = _context.Books.Where(b => bookIds.Contains(b.Id)).ToList();
-
         
             bool dokonanoKorekty = false;
             var zaktualizowanyKoszyk = new List<int>();
@@ -276,10 +269,8 @@ namespace meow.Controllers
             var cartString = HttpContext.Session.GetString("Koszyk") ?? "";
             if (string.IsNullOrEmpty(cartString)) return RedirectToAction("Cart");
 
-            // 1. Pobieram login tekstowy zalogowanej osoby 
             var sessionUser = HttpContext.Session.GetString("User");
 
-            // Jeśli sesja tekstowa jest pusta, oznacza to że nikt się nie zalogował
             if (string.IsNullOrEmpty(sessionUser))
             {
                 TempData["Message"] = "Zaloguj się, aby przejść do realizacji zamówienia.";
@@ -287,25 +278,20 @@ namespace meow.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // 2. Szuka w bazie użytkownika po jego loginie z sesji i dołączamy jego profil Klienta
             var uzytkownik = _context.Users
                 .Include(u => u.Klient)
                 .FirstOrDefault(u => u.Login == sessionUser);
 
-            // Jeśli nie ma takiego użytkownika lub nie ma przypisanego profilu klienta
             if (uzytkownik == null || uzytkownik.Klient == null)
             {
-              
                 var awaryjnyKlient = _context.Klienci.FirstOrDefault();
                 if (awaryjnyKlient == null) return RedirectToAction("Index", "Home");
 
                 return View(awaryjnyKlient);
             }
 
-            // Pobiera dane zalogowanego klienta (z rejestracji!)
             var klientData = uzytkownik.Klient;
 
-            // Wyliczenie wartości koszyka
             var bookIds = cartString.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList();
             var booksInCart = _context.Books.Where(b => bookIds.Contains(b.Id)).ToList();
 
@@ -353,7 +339,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 8. OSTATECZNE FINALIZOWANIE ZAMÓWIENIA (DYNAMICZNA POPRAWKA SESJI)
+        // 8. OSTATECZNE FINALIZOWANIE ZAMÓWIENIA (Z WYSOŁANIEM PRAWDZIWEGO E-MAILA)
         // ==========================================================
         [HttpPost]
         public IActionResult FinalizeOrder(string metodaDostawy, decimal kosztDostawy, string metodaPlatnosci,
@@ -365,7 +351,7 @@ namespace meow.Controllers
                 TempData["MessageType"] = "error";
                 return RedirectToAction("Cart"); 
             }
-            // 1. Wyciąga login tekstowy użytkownika z sesji
+
             var sessionUser = HttpContext.Session.GetString("User");
 
             if (string.IsNullOrEmpty(sessionUser))
@@ -375,14 +361,12 @@ namespace meow.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // 2. Szuka poprawnego KlientId przypisanego do loginu użytkownika
             var uzytkownik = _context.Users.FirstOrDefault(u => u.Login == sessionUser);
             if (uzytkownik == null)
             {
                 return RedirectToAction("Login", "Account");
             }
 
-            // Pobiera ID klienta (jeśli null, przypisujemy awaryjnie 0 lub ID pierwszego klienta)
             int finalKlientId = uzytkownik.KlientId ?? 0;
             if (finalKlientId == 0)
             {
@@ -424,7 +408,6 @@ namespace meow.Controllers
 
                             ksiazka.IloscDoSprzedazy -= kp.Value;
 
-                            // Pobieramy czas dedykowany dla strefy czasowej w Polsce
                             TimeZoneInfo plTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
                             DateTime polskiCzas = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, plTimeZone);
 
@@ -433,7 +416,7 @@ namespace meow.Controllers
                                 var noweZamowienie = new Zamowienie
                                 {
                                     IdKlienta = finalKlientId,
-                                    DataZamowienia = polskiCzas, // <--- Użycie poprawnego czasu lokalnego
+                                    DataZamowienia = polskiCzas, 
                                     Status = "W przygotowaniu",
                                     NumerSledzenia = wspólnyNumerPaczki,
                                     IdKsiazki = ksiazka.Id
@@ -446,40 +429,40 @@ namespace meow.Controllers
                     _context.SaveChanges();
                     transaction.Commit();
 
-                    //PUNKT 13: MAILING 
+                    // PUNKT 13: MAILING (Prawdziwa wysyłka MailKit + Logowanie)
                     try
                     {
-                        // Pobranie maila klienta z bazy danych do wysyłki
                         var daneKlienta = _context.Klienci.FirstOrDefault(k => k.IdKlienta == finalKlientId);
                         string emailOdbiorcy = daneKlienta?.Email ?? "klient@meow-ksiegarnia.pl";
-
+                        string imieKlienta = daneKlienta?.Imie ?? "Kliencie";
                    
-                        string temat = $"Potwierdzenie zamówienia {wspólnyNumerPaczki} 🐾";
                         string trescMaila = $@"
-                            Cześć {daneKlienta?.Imie ?? "Kliencie"}!
+Dziękujemy za zakupy w e-księgarni meow! Twój koszyk został pomyślnie opłacony.
                             
-                            Dziękujemy za zakupy w e-księgarni meow! Twój koszyk został pomyślnie opłacony.
+Szczegóły Twojej paczki:
+- Numer śledzenia: {wspólnyNumerPaczki}
+- Status: W przygotowaniu
                             
-                            Szczegóły Twojej paczki:
-                            - Numer śledzenia: {wspólnyNumerPaczki}
-                            - Status: W przygotowaniu
+Jak tylko przesyłka ruszy w drogę, poinformujemy Cię o tym.
                             
-                            Jak tylko przesyłka ruszy w drogę, poinformujemy Cię o tym.
-                            
-                            Mruczącego dnia,
-                            Zespół meow 🐾";
+Mruczącego dnia,
+Zespół meow 🐾";
 
-                        // Zapis do pliku/logów udający wysyłkę SMTP (bezpieczne dla środowisk testowych i prezentacji projektu)
+                        // 1. Logowanie testowe do pliku
                         string path = Path.Combine(AppContext.BaseDirectory, "sent_emails.txt");
-                        string logLogiki =
-                            $"\n--- WYSOŁANO E-MAIL STMP ---\nDo: {emailOdbiorcy}\nTemat: {temat}\nTreść:\n{trescMaila}\n-------------------------\n";
+                        string logLogiki = $"\n--- WYSOŁANO E-MAIL STMP ---\nDo: {emailOdbiorcy}\nTemat: Potwierdzenie zamówienia {wspólnyNumerPaczki} 🐾\nTreść:\nCześć {imieKlienta}!\n{trescMaila}\n-------------------------\n";
                         System.IO.File.AppendAllText(path, logLogiki);
                         
+                        // 2. Wysyłanie prawdziwego maila w tle, aby zapobiec lagom na interfejsie
+                        Task.Run(async () => 
+                        {
+                            await _emailService.SendOrderEmailAsync(emailOdbiorcy, imieKlienta, wspólnyNumerPaczki, trescMaila);
+                        });
                     }
                     catch (Exception)
                     {
+                        // Wyłapanie błędów sieciowych mailingu, aby nie psuć pomyślnego zakupu
                     }
-                
 
                     HttpContext.Session.Remove("Koszyk");
                     HttpContext.Session.Remove("AdresDostawy");
@@ -504,9 +487,6 @@ namespace meow.Controllers
         }
     }
 
-    // ==========================================================
-    // POMOCNICZY MODEL DLA PARAMETRU WEJŚCIOWEGO API (JSON)
-    // ==========================================================
     public class CartRequest
     {
         public int BookId { get; set; }
