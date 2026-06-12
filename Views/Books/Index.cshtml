@@ -174,7 +174,7 @@
     // Zmienna przechowująca kopię zapasową początkowego HTML-a wygenerowanego przez C# (Razor)
     const originalTableHtml = document.getElementById('main-table-body').innerHTML;
 
-    // 2. PRAWDZIWY FETCH DO TWOJEGO BOOKS_API_CONTROLLER
+    // 2. FETCH DO BOOKS_API_CONTROLLER
     document.getElementById('search-api-input').addEventListener('input', async function(e) {
         const searchTerm = e.target.value.toLowerCase().trim();
         const tableBody = document.getElementById('main-table-body');
@@ -190,7 +190,7 @@
         statusSpan.innerText = "⚡ Odpytywanie API...";
 
         try {
-            // Wywołanie Twojej metody [HttpGet] z BooksApiController!
+            // Wywołanie metody [HttpGet] z BooksApiController!
             const response = await fetch('/api/booksapi');
             if (!response.ok) throw new Error("Błąd pobierania");
 

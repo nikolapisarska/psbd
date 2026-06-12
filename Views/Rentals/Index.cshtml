@@ -178,7 +178,7 @@
         rows.forEach(function(row) {
             const textToSearch = row.getAttribute('data-searchable');
             
-            // Wyciągamy ID książki z jej wiersza, żeby móc schować panel egzemplarzy w razie ukrycia książki
+     
             const nextRow = row.nextElementSibling;
             const bookId = (nextRow && nextRow.id) ? nextRow.id.replace('egz-row-', '') : null;
             const egzRow = document.getElementById('egz-row-' + bookId);
@@ -188,7 +188,7 @@
             } else {
                 row.style.display = "none";
                 if (egzRow) {
-                    egzRow.style.display = "none"; // Schowaj panel zarządzania egzemplarzami, jeśli książka została ukryta
+                    egzRow.style.display = "none"; 
                 }
             }
         });

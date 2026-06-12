@@ -5,19 +5,19 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Memory; // <--- WYMAGANY IMPORT
+using Microsoft.Extensions.Caching.Memory;
 
 namespace meow.Controllers
 {
     public class ShopController : Controller
     {
         private readonly LibraryDbContext _context;
-        private readonly IMemoryCache _cache; // <--- 1. WSTRZYKNIĘCIE INTERFEJSU CACHE
+        private readonly IMemoryCache _cache; 
 
         public ShopController(LibraryDbContext context, IMemoryCache cache)
         {
             _context = context;
-            _cache = cache; // <--- 2. PRZYPISANIE DO POLA
+            _cache = cache; 
         }
 
         // ==========================================================
@@ -27,28 +27,28 @@ namespace meow.Controllers
         {
             List<Book> booksResult;
 
-            // Cache stosujemy TYLKO wtedy, gdy użytkownik nie używa filtrów, wyszukiwarki ani sortowania
+
             if (string.IsNullOrEmpty(gatunek) && string.IsNullOrEmpty(sortowanie) && string.IsNullOrEmpty(fraza))
             {
                 string cacheKey = "allBooksMainList";
 
-                // 3. Sprawdzamy, czy czysta lista jest w pamięci cache
+        
                 if (!_cache.TryGetValue(cacheKey, out booksResult))
                 {
-                    // Jeśli nie ma, pobieramy z bazy danych
+              
                     booksResult = _context.Books.ToList();
 
-                    // Konfigurujemy opcje ważności cache na 5 minut
+         
                     var cacheEntryOptions = new MemoryCacheEntryOptions()
                         .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
 
-                    // Zapisujemy w pamięci RAM serwera
+       
                     _cache.Set(cacheKey, booksResult, cacheEntryOptions);
                 }
             }
             else
             {
-                // Jeśli użytkownik filtruje lub szuka, działamy standardowo na bazie danych, aby wyniki były dokładne
+                
                 var query = _context.Books.AsQueryable();
 
                 if (!string.IsNullOrEmpty(fraza))
@@ -74,7 +74,7 @@ namespace meow.Controllers
                 booksResult = query.ToList();
             }
 
-            // Te dane są potrzebne do poprawnego wyrenderowania widoku przez Twój układ
+
             ViewBag.WybranyGatunek = string.IsNullOrEmpty(fraza) && string.IsNullOrEmpty(gatunek)
                 ? "Wszystkie pozycje w e-księgarni meow 🐾"
                 : (!string.IsNullOrEmpty(gatunek) ? $"Książki z kategorii: {gatunek}" : $"Wyniki wyszukiwania dla frazy: „{fraza}”");
@@ -82,7 +82,7 @@ namespace meow.Controllers
             ViewBag.AktualnyGatunek = gatunek;
             ViewBag.AktualneSortowanie = sortowanie;
 
-            return View(booksResult); // Przekazanie listy (z cache lub przefiltrowanej z bazy)
+            return View(booksResult); 
         }
         
 
@@ -189,7 +189,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 4. KOSZYK (Z INTEGRACJĄ KOREKTY STANU W LOCIE)
+        // 4. KOSZYK (Z INTEGRACJĄ KOREKTY STANU )
         // ==========================================================
         public IActionResult Cart()
         {
@@ -199,7 +199,7 @@ namespace meow.Controllers
             var bookIds = cartString.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList();
             var booksInCart = _context.Books.Where(b => bookIds.Contains(b.Id)).ToList();
 
-            // --- INTELIGENTNA KOREKTA STANU MAGAZYNOWEGO W KOSZYKU ---
+        
             bool dokonanoKorekty = false;
             var zaktualizowanyKoszyk = new List<int>();
 
@@ -295,7 +295,7 @@ namespace meow.Controllers
             // Jeśli nie ma takiego użytkownika lub nie ma przypisanego profilu klienta
             if (uzytkownik == null || uzytkownik.Klient == null)
             {
-                // Awaryjnie bierze pierwszego lepszego klienta, żeby strona się nie wywaliła podczas prezentacji
+              
                 var awaryjnyKlient = _context.Klienci.FirstOrDefault();
                 if (awaryjnyKlient == null) return RedirectToAction("Index", "Home");
 
@@ -436,14 +436,14 @@ namespace meow.Controllers
                     _context.SaveChanges();
                     transaction.Commit();
 
-                    // --- REALIZACJA PUNKTU 13: MAILING ---
+                    //PUNKT 13: MAILING 
                     try
                     {
                         // Pobranie maila klienta z bazy danych do wysyłki
                         var daneKlienta = _context.Klienci.FirstOrDefault(k => k.IdKlienta == finalKlientId);
                         string emailOdbiorcy = daneKlienta?.Email ?? "klient@meow-ksiegarnia.pl";
 
-                        // Symulacja / Przygotowanie wysyłki SMTP
+                   
                         string temat = $"Potwierdzenie zamówienia {wspólnyNumerPaczki} 🐾";
                         string trescMaila = $@"
                             Cześć {daneKlienta?.Imie ?? "Kliencie"}!
@@ -464,27 +464,12 @@ namespace meow.Controllers
                         string logLogiki =
                             $"\n--- WYSOŁANO E-MAIL STMP ---\nDo: {emailOdbiorcy}\nTemat: {temat}\nTreść:\n{trescMaila}\n-------------------------\n";
                         System.IO.File.AppendAllText(path, logLogiki);
-
-                        /* * Opcjonalnie: Jeśli na prezentacji musisz pokazać prawdziwe SMTP, odkomentuj poniższy kod standardowy .NET:
-                         * * using (var message = new System.Net.Mail.MailMessage("no-reply@meow.pl", emailOdbiorcy))
-                         * {
-                         * message.Subject = temat;
-                         * message.Body = trescMaila;
-                         * using (var client = new System.Net.Mail.SmtpClient("smtp.mailtrap.io", 2525)) // Przykład użycia Mailtrap
-                         * {
-                         * client.Credentials = new System.Net.NetworkCredential("username", "password");
-                         * client.EnableSsl = true;
-                         * client.Send(message);
-                         * }
-                         * }
-                         */
+                        
                     }
                     catch (Exception)
                     {
-                        // Błąd wysyłki maila nie powinien przerywać procesu pomyślnego zakupu, 
-                        // dlatego wyłapujemy go w osobnym bloku try-catch
                     }
-                    // --- KONIEC PUNKTU 13 ---
+                
 
                     HttpContext.Session.Remove("Koszyk");
                     HttpContext.Session.Remove("AdresDostawy");

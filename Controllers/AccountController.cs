@@ -17,7 +17,7 @@ namespace meow.Controllers
     {
         private readonly LibraryDbContext _context;
         private readonly ILogger<AccountController> _logger; // Systemowy Logger zdarzeń
-        private readonly IEmailService _emailService; // Nowo dodana usługa mailingu
+        private readonly IEmailService _emailService; 
 
         // Konstruktor realizujący wstrzykiwanie zależności (Dependency Injection) z uwzględnieniem IEmailService
         public AccountController(LibraryDbContext context, ILogger<AccountController> logger, IEmailService emailService)
@@ -150,10 +150,10 @@ namespace meow.Controllers
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken] 
-        public async Task<IActionResult> Login(string login, string haslo) // <-- Zmiana tutaj
+        public async Task<IActionResult> Login(string login, string haslo) 
         {
             // Walidacja pustych pól formularza
-            if (string.IsNullOrEmpty(login) || string.IsNullOrEmpty(haslo)) // <-- Zmiana tutaj
+            if (string.IsNullOrEmpty(login) || string.IsNullOrEmpty(haslo))
             {
                 TempData["Message"] = "Uzupełnij login i hasło.";
                 TempData["MessageType"] = "error";
@@ -166,7 +166,7 @@ namespace meow.Controllers
                 .FirstOrDefaultAsync(u => u.Login == login); 
 
             // Weryfikacja loginu oraz weryfikacja hasła kryptograficznego przy użyciu BCrypt
-            if (user != null && BCrypt.Net.BCrypt.Verify(haslo, user.Haslo)) // <-- Zmiana tutaj
+            if (user != null && BCrypt.Net.BCrypt.Verify(haslo, user.Haslo)) 
             {
                 // --- PUNKT 19: LOGGER (SUKCES LOGOWANIA) ---
                 _logger.LogInformation("Użytkownik '{Login}' pomyślnie zalogował się do systemu. Rola: {Rola}. Adres IP: {IP}", 
@@ -175,7 +175,7 @@ namespace meow.Controllers
                 // Zapisywanie danych uwierzytelniających w sesji serwera
                 HttpContext.Session.SetString("User", user.Login ?? "Użytkownik");
                 HttpContext.Session.SetString("Role", user.Rola ?? "Klient");
-                HttpContext.Session.SetString("UserRole", user.Rola ?? "Klient"); // Dla kompatybilności z akcją Profile
+                HttpContext.Session.SetString("UserRole", user.Rola ?? "Klient");
 
                 if (user.KlientId.HasValue)
                 {
@@ -197,7 +197,7 @@ namespace meow.Controllers
             }
             else
             {
-                // --- PUNKT 19: LOGGER (OSTRZEŻENIE O ZŁYM LEŚNYM LOGOWANIU) ---
+                // PUNKT 19: LOGGER (OSTRZEŻENIE O ZŁYM LOGOWANIU) ---
                 _logger.LogWarning("Nieudana próba logowania na konto '{Login}'. Podano błędne hasło lub użytkownik nie istnieje.", 
                     login);
 
@@ -218,7 +218,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 5. REJESTRACJA (POST) - ZMIENIONA NA ASYNCHRONICZNĄ Z USŁUGĄ MAILINGU
+        // 5. REJESTRACJA (POST) - ASYNCHRONICZNA Z USŁUGĄ MAILINGU
         // ==========================================================
         [HttpPost]
         [ValidateAntiForgeryToken] 
@@ -266,8 +266,8 @@ namespace meow.Controllers
             _context.Users.Add(newUser);
             _context.SaveChanges();
 
-            // --- PUNKT 13: MAILING (WYSOŁANIE MAILA POWITALNEGO) ---
-            // Wywołujemy asynchroniczną usługę wysyłania e-maila po poprawnym zarejestrowaniu użytkownika.
+            // PUNKT 13: MAILING (WYSOŁANIE MAILA POWITALNEGO)
+           
             await _emailService.SendWelcomeEmailAsync(model.Email, model.Login);
 
             return RedirectToAction("Login");

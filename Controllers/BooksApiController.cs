@@ -48,8 +48,7 @@ namespace meow.Controllers
             client.DefaultRequestHeaders.Add("User-Agent", "meow-library-app"); 
 
             string apiKey = "AIzaSyA7oz_7f1vZCZxFVepWm8ti8cbGhFqa8q0"; 
-
-            // Czyste zapytanie bez cudzysłowów - pozwala Google na jednoczesne szukanie Autora + Tytułu
+            
             string url = $"https://www.googleapis.com/books/v1/volumes?q={Uri.EscapeDataString(query)}&maxResults=10&key={apiKey}";
 
             try
@@ -134,7 +133,7 @@ namespace meow.Controllers
             }
         }
 
-        // ULEPSZENIE: Przyjmujemy dodatkowe parametry z widoku, by zapisać je trwale w bazie danych
+       
         [HttpPost("SaveToDatabase")]
         public async Task<IActionResult> SaveToDatabase(string title, string authors, string publisher, string description, string imageUrl, int pageCount, string language, string printType)
         {

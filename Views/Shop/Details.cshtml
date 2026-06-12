@@ -336,8 +336,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (cartBadge) {
                         cartBadge.innerText = data.totalItems;
                     }
-                    
-                    // Opcjonalnie: automatyczne ukrycie komunikatu sukcesu po 4 sekundach
                     setTimeout(() => { messageContainer.style.display = "none"; }, 4000);
                 } else {
                     messageContainer.style.background = "#fee2e2";

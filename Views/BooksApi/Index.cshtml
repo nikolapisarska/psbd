@@ -52,10 +52,10 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
             const data = await response.json();
 
             if (data.success) {
-                // ZMIANA: Iterujemy po tablicy 'books' zwróconej z nowego backendu
+             
                 data.books.forEach((book, index) => {
 
-                    // Przygotowanie okładki... (twój stary kod)
+                    // Przygotowanie okładki
                     const imgHtml = book.thumbnailUrl
                         ? `<img src="${book.thumbnailUrl}" alt="Okładka" class="img-fluid rounded shadow" style="max-height: 220px;" />`
                         : `<div class="text-muted border p-4">Brak okładki</div>`;
@@ -65,11 +65,11 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
                     if (book.printType === 'MAGAZINE') {
                         formatBadge = '<span class="badge bg-warning text-dark">Magazyn/Czasopismo</span>';
                     } else if (book.thumbnailUrl && book.thumbnailUrl.includes("edge=curl")) {
-                        // Czasami Google nie mówi wprost, że to e-book, ale daje taką wskazówkę w linku okładki
+                  
                         formatBadge = '<span class="badge bg-info text-dark">E-Book / Cyfrowa</span>';
                     }
 
-                    // Bezpieczne parsowanie... (twój stary kod)
+                    // Bezpieczne parsowanie
                     const safeTitle = book.title.replace(/"/g, '&quot;');
                     const safeAuthors = (book.authors || "Nieznany autor").replace(/"/g, '&quot;');
                     const safePublisher = book.publisher.replace(/"/g, '&quot;');
@@ -133,7 +133,7 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
         }
     });
 
-    // ZMIANA: Funkcja obsługująca zapisywanie konkretnej książki z listy
+    //Funkcja obsługująca zapisywanie konkretnej książki z listy
     function initSaveButtons() {
         const saveButtons = document.querySelectorAll('.save-book-btn');
 
@@ -151,8 +151,6 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
                 formData.append('publisher', this.getAttribute('data-publisher'));
                 formData.append('description', this.getAttribute('data-description'));
                 formData.append('imageUrl', this.getAttribute('data-image-url'));
-
-                // 🆕 DOPISZ TE TRZY LINIE, ABY BACKEND DOSTAŁ PARAMETRY DO ZAPISU:
                 formData.append('pageCount', currentCard.querySelector('ul.list-inline li:nth-last-child(3) span').innerText || "0");
                 formData.append('language', currentCard.querySelector('ul.list-inline li:last-child span').innerText || "pl");
                 formData.append('printType', currentCard.querySelector('ul.list-inline li:nth-last-child(5) span')?.innerText || "");

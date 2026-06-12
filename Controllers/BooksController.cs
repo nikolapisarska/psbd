@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Memory; // Dodane dla obsługi cache
+using Microsoft.Extensions.Caching.Memory; 
 
 namespace meow.Controllers
 {
@@ -37,7 +37,7 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 1. WIDOK GŁÓWNY PANELU ADMINISTRATORA (Z ZASTOSOWANIEM CACHE)
+        // 1. WIDOK GŁÓWNY PANELU ADMINISTRATORA 
         // ==========================================================
         public IActionResult Index()
         {
@@ -51,15 +51,14 @@ namespace meow.Controllers
                 // Jeśli nie ma, wyciągamy pełną listę z bazy danych wraz z relacjami
                 books = _context.Books.Include(b => b.Egzemplarze).ToList();
 
-                // Konfiguracja czasu wygaśnięcia (np. 5 minut)
+                // Konfiguracja czasu wygaśnięcia 
                 var cacheEntryOptions = new MemoryCacheEntryOptions()
                     .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
 
                 // Zapis do pamięci
                 _cache.Set(cacheKey, books, cacheEntryOptions);
             }
-            
-            // Pozostałe dynamiczne elementy ViewBag generowane przy każdym żądaniu
+      
             ViewBag.AktywneWypozyczenia = _context.Wypozyczenia
                 .Where(w => w.DataZwrotu == null && w.IdEgzemplarz != null)
                 .Select(w => (int)w.IdEgzemplarz!)
@@ -67,8 +66,7 @@ namespace meow.Controllers
 
             ViewBag.Gatunki = _wszystkieGatunki;
             ViewBag.Stany = new[] { "idealny", "bardzo dobry", "dobry", "zużyty", "zniszczony" };
-
-            // Zwracamy listę (List<Book>), która idealnie pasuje do IEnumerable<meow.Models.Book> w widoku
+            
             return View(books);
         }
 
