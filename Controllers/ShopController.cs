@@ -424,12 +424,16 @@ namespace meow.Controllers
 
                             ksiazka.IloscDoSprzedazy -= kp.Value;
 
+                            // Pobieramy czas dedykowany dla strefy czasowej w Polsce
+                            TimeZoneInfo plTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
+                            DateTime polskiCzas = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, plTimeZone);
+
                             for (int i = 0; i < kp.Value; i++)
                             {
                                 var noweZamowienie = new Zamowienie
                                 {
                                     IdKlienta = finalKlientId,
-                                    DataZamowienia = DateTime.Now,
+                                    DataZamowienia = polskiCzas, // <--- Użycie poprawnego czasu lokalnego
                                     Status = "W przygotowaniu",
                                     NumerSledzenia = wspólnyNumerPaczki,
                                     IdKsiazki = ksiazka.Id
