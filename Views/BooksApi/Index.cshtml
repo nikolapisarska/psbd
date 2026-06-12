@@ -1,90 +1,199 @@
 @{
-    ViewData["Title"] = "Wyszukiwarka Książek API";
+ViewData["Title"] = "Wyszukiwarka Książek API";
 }
 
-<div class="container mt-4"> <h2>Integracja z Google Books API (Protokół HTTP)</h2>
-    <p class="text-muted">Wpisz tytuł książki, autora lub numer ISBN, aby automatycznie pobrać dane.</p>
+<div class="container mt-4">
+    <h2>Integracja z Google Books API (Dynamiczny AJAX)</h2>
+    <p class="text-muted">Wpisz tytuł książki, autora lub numer ISBN, aby automatycznie pobrać dane bez przeładowania strony.</p>
 
-    <form asp-action="Search" method="post" class="row g-3 mb-4">
+    <form id="searchForm" class="row g-3 mb-4">
         <div class="col-md-8">
-            <input type="text" name="query" class="form-control" placeholder="Np. Wiedźmin, Ostatnie życzenie lub 9788375747003" required />
+            <input type="text" id="queryInput" class="form-control" placeholder="Np. Wiedźmin, Ostatnie życzenie lub 9788375747003" required />
         </div>
         <div class="col-md-4">
-            <button type="submit" class="btn btn-primary w-100">Pobierz dane z API</button>
+            <button type="submit" class="btn btn-primary w-100" id="searchBtn">
+                <span id="searchSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                Pobierz dane z API
+            </button>
         </div>
     </form>
 
     <hr />
 
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
+    <div id="alertContainer"></div>
 
-    @if (ViewBag.Error != null)
-    {
-        <div class="alert alert-danger">@ViewBag.Error</div>
-    }
-    @if (ViewBag.Message != null)
-    {
-        <div class="alert alert-warning">@ViewBag.Message</div>
-    }
+    <div id="booksResultsContainer" class="d-flex flex-column gap-4"></div>
+</div>
 
-    @if (ViewBag.Title != null)
-    {
-        <div class="card shadow-sm">
+@section Scripts {
+<script>
+    document.getElementById('searchForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const query = document.getElementById('queryInput').value;
+        const searchBtn = document.getElementById('searchBtn');
+        const searchSpinner = document.getElementById('searchSpinner');
+        const container = document.getElementById('booksResultsContainer');
+        const alertContainer = document.getElementById('alertContainer');
+
+        alertContainer.innerHTML = '';
+        container.innerHTML = ''; // Czyszczenie poprzednich wyników wyszukiwania
+
+        searchBtn.disabled = true;
+        searchSpinner.classList.remove('d-none');
+
+        try {
+            const response = await fetch('/api/booksapi/Search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `query=${encodeURIComponent(query)}`
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // ZMIANA: Iterujemy po tablicy 'books' zwróconej z nowego backendu
+                data.books.forEach((book, index) => {
+
+                    // Przygotowanie okładki... (twój stary kod)
+                    const imgHtml = book.thumbnailUrl
+                        ? `<img src="${book.thumbnailUrl}" alt="Okładka" class="img-fluid rounded shadow" style="max-height: 220px;" />`
+                        : `<div class="text-muted border p-4">Brak okładki</div>`;
+
+                    // 🆕 Tłumaczenie formatu na polski i dobór koloru plakietki
+                    let formatBadge = '<span class="badge bg-secondary">Książka</span>';
+                    if (book.printType === 'MAGAZINE') {
+                        formatBadge = '<span class="badge bg-warning text-dark">Magazyn/Czasopismo</span>';
+                    } else if (book.thumbnailUrl && book.thumbnailUrl.includes("edge=curl")) {
+                        // Czasami Google nie mówi wprost, że to e-book, ale daje taką wskazówkę w linku okładki
+                        formatBadge = '<span class="badge bg-info text-dark">E-Book / Cyfrowa</span>';
+                    }
+
+                    // Bezpieczne parsowanie... (twój stary kod)
+                    const safeTitle = book.title.replace(/"/g, '&quot;');
+                    const safeAuthors = (book.authors || "Nieznany autor").replace(/"/g, '&quot;');
+                    const safePublisher = book.publisher.replace(/"/g, '&quot;');
+                    const safeDescription = (book.description || "Brak opisu").replace(/"/g, '&quot;');
+
+                    // Generowanie HTML karty dla pojedynczej książki
+                    const bookCard = `
+        <div class="card shadow-sm book-result-card">
             <div class="row g-0">
                 <div class="col-md-3 text-center p-3 bg-light d-flex align-items-center justify-content-center">
-                    @if (!string.IsNullOrEmpty(ViewBag.ThumbnailUrl))
-                    {
-                        <img src="@ViewBag.ThumbnailUrl" alt="Okładka książki" class="img-fluid rounded shadow" style="max-height: 250px;" />
-                    }
-                    else
-                    {
-                        <div class="text-muted border p-4">Brak oficjalnej okładki w API</div>
-                    }
+                    ${imgHtml}
                 </div>
                 <div class="col-md-9">
                     <div class="card-body">
-                        <h3 class="card-title text-primary">@ViewBag.Title</h3>
-                        <h6 class="card-subtitle mb-2 text-muted"><strong>Autorzy:</strong> @ViewBag.Authors</h6>
+                        <h3 class="card-title text-primary">${book.title} ${formatBadge}</h3>
+                        <h6 class="card-subtitle mb-2 text-muted"><strong>Autorzy:</strong> <span>${book.authors || "Nieznany autor"}</span></h6>
                         
                         <ul class="list-inline my-3 text-secondary">
-                            <li class="list-inline-item"><strong>Wydawnictwo:</strong> @ViewBag.Publisher</li>
+                            <li class="list-inline-item"><strong>Wydawnictwo:</strong> <span>${book.publisher}</span></li>
                             <li class="list-inline-item">|</li>
-                            <li class="list-inline-item"><strong>Data wydania:</strong> @ViewBag.PublishedDate</li>
+                            <li class="list-inline-item"><strong>Data wydania:</strong> <span>${book.publishedDate}</span></li>
+                            <li class="list-inline-item">|</li>
+                            <li class="list-inline-item"><strong>Stron:</strong> <span class="badge bg-light text-dark border">${book.pageCount}</span></li>
+                            <li class="list-inline-item">|</li>
+                            <li class="list-inline-item"><strong>Język:</strong> <span class="badge bg-light text-dark border">${book.language.toUpperCase()}</span></li>
                         </ul>
 
                         <p class="card-text"><strong>Opis książki:</strong></p>
-                        <p class="text-justify" style="max-height: 200px; overflow-y: auto;">@ViewBag.Description</p>
+                        <p class="text-justify" style="max-height: 150px; overflow-y: auto;">${book.description}</p>
                         
                         <div class="mt-3">
-                            <form asp-action="SaveToDatabase" method="post">
-                                
-                                <input type="hidden" name="title" value="@ViewBag.Title" />
-                                <input type="hidden" name="authors" value="@ViewBag.Authors" />
-                                <input type="hidden" name="publisher" value="@ViewBag.Publisher" />
-                                <input type="hidden" name="description" value="@ViewBag.Description" />
-                                <input type="hidden" name="imageUrl" value="@ViewBag.ThumbnailUrl" />
-
-                                <button type="submit" class="btn btn-success">
-                                    <i class="bi bi-cloud-arrow-up"></i> Zapisz tę książkę w mojej bazie danych
-                                </button>
-                            </form>
+                            <button type="button" class="btn btn-success save-book-btn" 
+                                    data-title="${safeTitle}" 
+                                    data-authors="${safeAuthors}" 
+                                    data-publisher="${safePublisher}" 
+                                    data-description="${safeDescription}" 
+                                    data-image-url="${book.thumbnailUrl}">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                <i class="bi bi-cloud-arrow-up"></i> Zapisz tę książkę w mojej bazie danych
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    `;
+                    container.insertAdjacentHTML('beforeend', bookCard);
+                });
+
+                // Po wygenerowaniu kart, przypisujemy nasłuchiwanie zdarzeń dla nowych przycisków zapisu
+                initSaveButtons();
+
+            } else {
+                showAlert(data.message, 'warning');
+            }
+        } catch (error) {
+            showAlert('Wystąpił błąd podczas komunikacji z serwerem.', 'danger');
+        } finally {
+            searchBtn.disabled = false;
+            searchSpinner.classList.add('d-none');
+        }
+    });
+
+    // ZMIANA: Funkcja obsługująca zapisywanie konkretnej książki z listy
+    function initSaveButtons() {
+        const saveButtons = document.querySelectorAll('.save-book-btn');
+
+        saveButtons.forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const spinner = this.querySelector('.spinner-border');
+                const currentCard = this.closest('.book-result-card');
+
+                this.disabled = true;
+                spinner.classList.remove('d-none');
+
+                const formData = new URLSearchParams();
+                formData.append('title', this.getAttribute('data-title'));
+                formData.append('authors', this.getAttribute('data-authors'));
+                formData.append('publisher', this.getAttribute('data-publisher'));
+                formData.append('description', this.getAttribute('data-description'));
+                formData.append('imageUrl', this.getAttribute('data-image-url'));
+
+                // 🆕 DOPISZ TE TRZY LINIE, ABY BACKEND DOSTAŁ PARAMETRY DO ZAPISU:
+                formData.append('pageCount', currentCard.querySelector('ul.list-inline li:nth-last-child(3) span').innerText || "0");
+                formData.append('language', currentCard.querySelector('ul.list-inline li:last-child span').innerText || "pl");
+                formData.append('printType', currentCard.querySelector('ul.list-inline li:nth-last-child(5) span')?.innerText || "");
+
+                try {
+                    const response = await fetch('/api/booksapi/SaveToDatabase', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: formData.toString()
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        showAlert(data.message, 'success');
+                        currentCard.remove();
+                    } else {
+                        showAlert(data.message, 'danger');
+                        this.disabled = false;
+                    }
+                } catch (error) {
+                    showAlert('Błąd podczas zapisu książki.', 'danger');
+                    this.disabled = false;
+                } finally {
+                    spinner.classList.add('d-none');
+                }
+            });
+        });
     }
-</div>
+
+    function showAlert(message, type) {
+        const alertContainer = document.getElementById('alertContainer');
+        const icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill';
+        alertContainer.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    <i class="bi ${icon} me-2"></i> ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+        // Przewiń widok do alertu, aby użytkownik widział status zapisu
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+</script>
+}

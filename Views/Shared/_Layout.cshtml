@@ -21,20 +21,20 @@ var userRole = Context.Session.GetString("UserRole");
 
         @if (userRole == "Admin")
         {
-        <span class="navbar-brand fw-bold fs-4 m-0" style="cursor: default;">🐾 meow księgarnia</span>
+            <span class="navbar-brand fw-bold fs-4 m-0" style="cursor: default;">🐾 meow księgarnia</span>
         }
         else
         {
-        <a class="navbar-brand fw-bold fs-4 m-0" href="/Shop">🐾 meow księgarnia</a>
+            <a class="navbar-brand fw-bold fs-4 m-0" href="/Shop">🐾 meow księgarnia</a>
         }
 
         <div class="d-flex align-items-center flex-grow-1 flex-sm-grow-0 justify-content-between gap-4 ms-auto w-100 w-sm-auto">
 
             @if (userRole != "Admin")
             {
-            <div class="input-group" style="max-width: 240px;">
-                <input type="text" class="form-control form-control-sm" id="searchField" placeholder="Szukaj po tytule..." />
-            </div>
+                <div class="input-group" style="max-width: 240px;">
+                    <input type="text" class="form-control form-control-sm" id="searchField" placeholder="Szukaj po tytule..." />
+                </div>
             }
 
             <div class="navbar-nav flex-row align-items-center gap-3 ms-auto">
@@ -50,10 +50,10 @@ var userRole = Context.Session.GetString("UserRole");
 
                 @if (!string.IsNullOrEmpty(userLogin))
                 {
-                    // Menu dla ZALOGOWANEGO użytkownika
                     if (userRole == "Admin")
                     {
                         <a class="nav-link text-white fw-medium small" href="/">Panel Admina</a>
+                        <a class="nav-link text-warning fw-bold small" href="/api/booksapi/Index">➕ Importuj z API</a>
                     }
                     else
                     {
@@ -69,7 +69,6 @@ var userRole = Context.Session.GetString("UserRole");
                 }
                 else
                 {
-                    // Menu dla NIEZALOGOWANEGO użytkownika
                     <a class="nav-link text-white fw-medium small" href="/Account/Login">Zaloguj się</a>
                     <a class="nav-link text-white fw-medium small" href="/Account/Register">Rejestracja</a>
                 }

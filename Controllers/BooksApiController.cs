@@ -4,10 +4,13 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Linq;
 using meow.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace meow.Controllers
 {
+    [Route("api/booksapi")]
     public class BooksApiController : Controller
     {
         private readonly IHttpClientFactory _httpClientFactory;
@@ -19,26 +22,35 @@ namespace meow.Controllers
             _context = context;
         }
 
+        [HttpGet]
+        public IActionResult GetBooks()
+        {
+            var books = _context.Books.ToList(); 
+            return Json(books); 
+        }
+
+        [HttpGet("Index")] 
         public IActionResult Index()
         {
             return View();
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Search(string query)
+        [HttpPost("Search")] 
+        public async Task<IActionResult> Search([FromForm] string query)
         {
             if (string.IsNullOrEmpty(query))
             {
-                ViewBag.Error = "Wyszukiwana fraza lub ISBN nie może być pusta.";
-                return View("Index");
+                return Json(new { success = false, message = "Wyszukiwana fraza nie może być pusta." });
             }
 
             var client = _httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.Add("Accept", "application/json");
-            // KLUCZOWE: Google Books często blokuje żądania bez User-Agent
             client.DefaultRequestHeaders.Add("User-Agent", "meow-library-app"); 
 
-            string url = $"https://www.googleapis.com/books/v1/volumes?q={Uri.EscapeDataString(query)}&maxResults=1";
+            string apiKey = "AIzaSyA7oz_7f1vZCZxFVepWm8ti8cbGhFqa8q0"; 
+
+            // Czyste zapytanie bez cudzysłowów - pozwala Google na jednoczesne szukanie Autora + Tytułu
+            string url = $"https://www.googleapis.com/books/v1/volumes?q={Uri.EscapeDataString(query)}&maxResults=10&key={apiKey}";
 
             try
             {
@@ -50,97 +62,122 @@ namespace meow.Controllers
                     using var doc = JsonDocument.Parse(jsonString);
                     var root = doc.RootElement;
                     
-                    if (root.TryGetProperty("totalItems", out var totalItems) && totalItems.GetInt32() > 0)
+                    if (root.TryGetProperty("totalItems", out var totalItems) && totalItems.GetInt32() > 0 && root.TryGetProperty("items", out var itemsArray))
                     {
-                        var firstBook = root.GetProperty("items")[0].GetProperty("volumeInfo");
+                        var booksList = new List<object>();
 
-                        ViewBag.Title = firstBook.TryGetProperty("title", out var t) ? t.GetString() : "Brak tytułu";
-                        ViewBag.Publisher = firstBook.TryGetProperty("publisher", out var p) ? p.GetString() : "Nieznane wydawnictwo";
-                        ViewBag.PublishedDate = firstBook.TryGetProperty("publishedDate", out var pd) ? pd.GetString() : "Brak daty";
-                        ViewBag.Description = firstBook.TryGetProperty("description", out var d) ? d.GetString() : "Brak opisu";
-                        
-                        var authorsList = new List<string>();
-                        if (firstBook.TryGetProperty("authors", out var authorsArray))
+                        foreach (var item in itemsArray.EnumerateArray())
                         {
-                            foreach (var author in authorsArray.EnumerateArray())
-                            {
-                                authorsList.Add(author.GetString());
-                            }
-                        }
-                        ViewBag.Authors = string.Join(", ", authorsList);
+                            if (!item.TryGetProperty("volumeInfo", out var volumeInfo)) continue;
 
-                        string thumbnailUrl = "";
-                        if (firstBook.TryGetProperty("imageLinks", out var imageLinks))
-                        {
-                            thumbnailUrl = imageLinks.TryGetProperty("thumbnail", out var thumb) ? thumb.GetString() : "";
-                            if (!string.IsNullOrEmpty(thumbnailUrl) && thumbnailUrl.StartsWith("http://"))
+                            var title = volumeInfo.TryGetProperty("title", out var t) ? t.GetString() : "Brak tytułu";
+                            var publisher = volumeInfo.TryGetProperty("publisher", out var p) ? p.GetString() : "Nieznane wydawnictwo";
+                            var publishedDate = volumeInfo.TryGetProperty("publishedDate", out var pd) ? pd.GetString() : "Brak daty";
+                            var description = volumeInfo.TryGetProperty("description", out var d) ? d.GetString() : "Brak opisu";
+            
+                            var printType = volumeInfo.TryGetProperty("printType", out var pt) ? pt.GetString() : "BOOK";
+                            // Zabezpieczenie: jeśli pageCount nie istnieje w API, przypisujemy "0" zamiast błędu parsowania typu int
+                            var pageCount = volumeInfo.TryGetProperty("pageCount", out var pc) ? pc.GetInt32().ToString() : "0";
+                            var language = volumeInfo.TryGetProperty("language", out var lang) ? lang.GetString() : "pl";
+
+                            var authorsList = new List<string>();
+                            if (volumeInfo.TryGetProperty("authors", out var authorsArray))
                             {
-                                thumbnailUrl = thumbnailUrl.Replace("http://", "https://");
+                                foreach (var author in authorsArray.EnumerateArray())
+                                {
+                                    authorsList.Add(author.GetString());
+                                }
                             }
+                            var authors = string.Join(", ", authorsList);
+
+                            string thumbnailUrl = "";
+                            if (volumeInfo.TryGetProperty("imageLinks", out var imageLinks))
+                            {
+                                thumbnailUrl = imageLinks.TryGetProperty("thumbnail", out var thumb) ? thumb.GetString() : "";
+                                if (!string.IsNullOrEmpty(thumbnailUrl) && thumbnailUrl.StartsWith("http://"))
+                                {
+                                    thumbnailUrl = thumbnailUrl.Replace("http://", "https://");
+                                }
+                            }
+
+                            booksList.Add(new { 
+                                title, 
+                                authors, 
+                                publisher, 
+                                publishedDate, 
+                                description, 
+                                thumbnailUrl,
+                                printType,    
+                                pageCount,    
+                                language      
+                            });
                         }
-                        ViewBag.ThumbnailUrl = thumbnailUrl;
+
+                        return Json(new { 
+                            success = true, 
+                            books = booksList
+                        });
                     }
                     else
                     {
-                        ViewBag.Message = "Nie znaleziono żadnej książki dla podanego zapytania.";
+                        return Json(new { success = false, message = "Nie znaleziono żadnej książki dla podanego zapytania." });
                     }
                 }
                 else
                 {
-                    // Pobieramy kod błędu, żeby wiedzieć co poszło nie tak (np. 403, 400)
-                    ViewBag.Error = $"Błąd zewnętrznego API. Status: {response.StatusCode}";
+                    return Json(new { success = false, message = $"Błąd zewnętrznego API. Status: {response.StatusCode}" });
                 }
             }
             catch (Exception ex)
             {
-                ViewBag.Error = "Błąd połączenia z API: " + ex.Message;
+                return Json(new { success = false, message = "Błąd połączenia z API: " + ex.Message });
             }
-
-            return View("Index");
         }
 
-        [HttpPost]
-        public async Task<IActionResult> SaveToDatabase(string title, string authors, string publisher, string description, string imageUrl)
+        // ULEPSZENIE: Przyjmujemy dodatkowe parametry z widoku, by zapisać je trwale w bazie danych
+        [HttpPost("SaveToDatabase")]
+        public async Task<IActionResult> SaveToDatabase(string title, string authors, string publisher, string description, string imageUrl, int pageCount, string language, string printType)
         {
             if (string.IsNullOrEmpty(title))
             {
-                TempData["Error"] = "Nie udało się zapisać książki – brak tytułu.";
-                return RedirectToAction("Index");
+                return Json(new { success = false, message = "Nie udało się zapisać książki – brak tytułu." });
             }
 
             try
             {
-                // Mapujemy parametry z API na polskie nazwy pól w Twoim modelu Book
+                // Próba wyciągnięcia samego roku z formatu "YYYY-MM-DD" lub "YYYY" dostarczanego przez Google
+                int rok= DateTime.Now.Year;
+                if (!string.IsNullOrEmpty(printType) && printType.Length >= 4) {
+                    int.TryParse(printType.Substring(0, 4), out rok);
+                }
+
                 var newBook = new Book
                 {
                     Tytul = title,
                     Autor = string.IsNullOrEmpty(authors) ? "Nieznany autor" : authors,
                     Wydawnictwo = string.IsNullOrEmpty(publisher) ? "Nieznane wydawnictwo" : publisher,
-            
-                    // Bezpieczne przycinanie opisu do polskiego pola 'Opis'
                     Opis = description?.Length > 1000 ? description.Substring(0, 997) + "..." : description,
-            
                     ImageUrl = imageUrl,
-                    Cena = 0.00m,                     // Używamy 'Cena' zamiast 'Price'
-                    IloscEgzemplarzy = 1,             // Używamy 'IloscEgzemplarzy'
+                    Cena = 0.00m,                     
+                    IloscEgzemplarzy = 1,             
                     IloscDoSprzedazy = 0, 
-                    JezykWydania = "polski",
-                    NumerWydania = "I"
+                    JezykWydania = string.IsNullOrEmpty(language) ? "polski" : language.ToLower(),
+                    NumerWydania = "I",
+                    LiczbaStron = pageCount > 0 ? pageCount : null,
+                    OkladkaTyp = printType == "MAGAZINE" ? "Miękka (magazyn)" : "Zwykła",
+                    RokWydania = rok
                 };
 
-                // Dodanie nowego rekordu do bazy danych za pomocą EF Core
                 _context.Books.Add(newBook);
                 await _context.SaveChangesAsync();
 
-                TempData["Success"] = $"Książka \"{newBook.Tytul}\" została pomyślnie zapisana!";
+                return Json(new { success = true, message = $"Książka \"{newBook.Tytul}\" została pomyślnie zapisana w bazie systemu meow! 🐾" });
             }
             catch (Exception ex)
             {
                 var innerMessage = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                TempData["Error"] = "Błąd podczas zapisu do bazy danych: " + innerMessage;
+                return Json(new { success = false, message = "Błąd podczas zapisu do bazy danych: " + innerMessage });
             }
-
-            return RedirectToAction("Index");
         }
     }
 }
