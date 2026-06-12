@@ -298,58 +298,86 @@ namespace meow.Controllers
         }
 
         // ==========================================================
-        // 6. OBSŁUGA ZWROTÓW (PANCERNA METODA BEZ BŁĘDU 400)
-        // ==========================================================
-        [HttpPost]
-        [MeowAuthorize("Admin")] 
-        public IActionResult ZwrocKsiazke(int id_wypozyczenie, DateTime data_zwrotu, DateTime? dataZwrotu, DateTime? data)
+// 6. OBSŁUGA ZWROTÓW (PANCERNA METODA BEZ BŁĘDU 400)
+// ==========================================================
+[HttpPost]
+[MeowAuthorize("Admin")] 
+public IActionResult ZwrocKsiazke(int id_wypozyczenie, DateTime data_zwrotu, DateTime? dataZwrotu, DateTime? data)
+{
+    if (HttpContext.Session.GetString("UserRole") != "Admin")
+        return RedirectToAction("Login", "Account");
+
+    if (data_zwrotu == DateTime.MinValue && dataZwrotu.HasValue) data_zwrotu = dataZwrotu.Value;
+    if (data_zwrotu == DateTime.MinValue && data.HasValue) data_zwrotu = data.Value;
+    if (data_zwrotu == DateTime.MinValue) data_zwrotu = DateTime.Today;
+
+    // ZMIANA: Zamiast Find(id) ładujemy encję wraz z Klientem oraz Książką przez Egzemplarz
+    var wypozyczenie = _context.Wypozyczenia
+        .Include(w => w.Klient)
+        .Include(w => w.Egzemplarz).ThenInclude(e => e!.Book)
+        .FirstOrDefault(w => w.IdWypozyczenie == id_wypozyczenie);
+
+    if (wypozyczenie == null)
+        return RedirectToAction("Returns");
+
+    if (data_zwrotu < wypozyczenie.DataWypozyczenia)
+    {
+        TempData["Message"] = "Błąd: Data zwrotu nie może być wcześniejsza niż data wydania!";
+        TempData["MessageType"] = "error";
+        return RedirectToAction("Returns");
+    }
+
+    wypozyczenie.DataZwrotu = data_zwrotu;
+
+    if (data_zwrotu.Date > wypozyczenie.DataPlanowanegoZwrotu.Date)
+    {
+        int dniSpoznienia = (data_zwrotu.Date - wypozyczenie.DataPlanowanegoZwrotu.Date).Days;
+        decimal kara = dniSpoznienia * 0.50m;
+
+        var platnosc = new Platnosc
         {
-            if (HttpContext.Session.GetString("UserRole") != "Admin")
-                return RedirectToAction("Login", "Account");
+            IdWypozyczenie = id_wypozyczenie,
+            Kwota = kara
+        };
 
-            if (data_zwrotu == DateTime.MinValue && dataZwrotu.HasValue) data_zwrotu = dataZwrotu.Value;
-            if (data_zwrotu == DateTime.MinValue && data.HasValue) data_zwrotu = data.Value;
-            if (data_zwrotu == DateTime.MinValue) data_zwrotu = DateTime.Today;
+        _context.Platnosci.Add(platnosc);
+        _context.SaveChanges();
 
-            var wypozyczenie = _context.Wypozyczenia.Find(id_wypozyczenie);
-            if (wypozyczenie == null)
-                return RedirectToAction("Returns");
+        TempData["Message"] = $"Zwrot zarejestrowany. Naliczono opłatę za {dniSpoznienia} dni spóźnienia w wysokości: {kara:F2} zł. 🐾 Klient otrzymał powiadomienie e-mail.";
+        TempData["MessageType"] = "error";
+    }
+    else
+    {
+        _context.SaveChanges();
+        TempData["Message"] = "Książka zwrócona w terminie. Brak opłat karnych! ✔ 🐾 Klient otrzymał powiadomienie e-mail.";
+        TempData["MessageType"] = "success";
+    }
 
-            if (data_zwrotu < wypozyczenie.DataWypozyczenia)
+    // ==========================================================
+    // INTEGRACJA: AUTOMATYCZNY MAILING PO ZWROCIE KSIĄŻKI
+    // ==========================================================
+    try
+    {
+        if (wypozyczenie.Klient != null)
+        {
+            string emailOdbiorcy = wypozyczenie.Klient.Email ?? "klient@meow-ksiegarnia.pl";
+            string imieKlienta = wypozyczenie.Klient.Imie ?? "Czytelniku";
+            string tytulKsiazki = wypozyczenie.Egzemplarz?.Book?.Tytul ?? "Zwrócona książka";
+
+            // Wywołanie asynchroniczne w osobnym wątku roboczym (zgodnie z architekturą reszty projektu)
+            Task.Run(async () =>
             {
-                TempData["Message"] = "Błąd: Data zwrotu nie może być wcześniejsza niż data wydania!";
-                TempData["MessageType"] = "error";
-                return RedirectToAction("Returns");
-            }
-
-            wypozyczenie.DataZwrotu = data_zwrotu;
-
-            if (data_zwrotu.Date > wypozyczenie.DataPlanowanegoZwrotu.Date)
-            {
-                int dniSpoznienia = (data_zwrotu.Date - wypozyczenie.DataPlanowanegoZwrotu.Date).Days;
-                decimal kara = dniSpoznienia * 0.50m;
-
-                var platnosc = new Platnosc
-                {
-                    IdWypozyczenie = id_wypozyczenie,
-                    Kwota = kara
-                };
-
-                _context.Platnosci.Add(platnosc);
-                _context.SaveChanges();
-
-                TempData["Message"] = $"Zwrot zarejestrowany. Naliczono opłatę za {dniSpoznienia} dni spóźnienia w wysokości: {kara:F2} zł.";
-                TempData["MessageType"] = "error";
-            }
-            else
-            {
-                _context.SaveChanges();
-                TempData["Message"] = "Książka zwrócona w terminie. Brak opłat karnych! ✔";
-                TempData["MessageType"] = "success";
-            }
-
-            return RedirectToAction("Returns");
+                await _emailService.SendReturnConfirmationEmailAsync(emailOdbiorcy, imieKlienta, tytulKsiazki);
+            });
         }
+    }
+    catch (Exception)
+    {
+        // Wyłapujemy błędy sieciowe SMTP, aby awaria poczty nie cofnęła poprawnego zapisu zwrotu w bazie danych
+    }
+
+    return RedirectToAction("Returns");
+}
 
         // ==========================================================
         // 7. ZWROT REKOMENDOWANY DLA LINKÓW ZEWNĘTRZNYCH

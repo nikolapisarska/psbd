@@ -49,7 +49,7 @@ builder.Services.AddSession(options => {
 });
 
 builder.Services.AddTransient<IEmailService, SmtpEmailService>();
-
+builder.Services.AddHostedService<meow.Services.ExpiredReservationsCleanUpService>();
 var app = builder.Build();
 
 // ==========================================================
@@ -121,12 +121,17 @@ public interface IEmailService
     Task SendStatusUpdateEmailAsync(string toEmail, string userName, string orderNumber, string newStatus);
     Task SendReservationEmailAsync(string toEmail, string userName, string bookTitle, string inventoryNumber, DateTime deadline); 
     Task SendLoanConfirmationEmailAsync(string toEmail, string userName, string bookTitle, DateTime dueDate);
+    Task SendReturnConfirmationEmailAsync(string toEmail, string userName, string bookTitle);
 }
 
 public class SmtpEmailService : IEmailService
 {
     private readonly IConfiguration _configuration;
-    public SmtpEmailService(IConfiguration configuration) { _configuration = configuration; }
+
+    public SmtpEmailService(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
 
     public async Task SendWelcomeEmailAsync(string toEmail, string userName)
     {
@@ -137,7 +142,8 @@ public class SmtpEmailService : IEmailService
 
         var bodyBuilder = new BodyBuilder
         {
-            HtmlBody = $"<h1>Witaj {userName}!</h1><p>Twoje konto (login: {userName}) zostało pomyślnie utworzone. Życzymy miłego czytania i/lub zakupów! 🐱📖</p>"
+            HtmlBody =
+                $"<h1>Witaj {userName}!</h1><p>Twoje konto (login: {userName}) zostało pomyślnie utworzone. Życzymy miłego czytania i/lub zakupów! 🐱📖</p>"
         };
         message.Body = bodyBuilder.ToMessageBody();
 
@@ -179,7 +185,8 @@ public class SmtpEmailService : IEmailService
                 await client.AuthenticateAsync("ksiegarniameow@gmail.com", "kqxcgikrfdmpzrkv");
                 await client.SendAsync(message);
                 await client.DisconnectAsync(true);
-                Console.WriteLine($"🚀 Mail z potwierdzeniem zamówienia {orderNumber} wysłany przez MailKit do: {toEmail}");
+                Console.WriteLine(
+                    $"🚀 Mail z potwierdzeniem zamówienia {orderNumber} wysłany przez MailKit do: {toEmail}");
             }
             catch (Exception ex)
             {
@@ -195,8 +202,8 @@ public class SmtpEmailService : IEmailService
         message.To.Add(new MailboxAddress(userName, toEmail));
         message.Subject = $"Zmiana statusu zamówienia {orderNumber} 🐾";
 
-        string statusText = newStatus == "Wysłane" || newStatus == "Nadane" 
-            ? $"Twoja paczka o numerze śledzenia <strong>{orderNumber}</strong> została właśnie nadana i ruszyła w drogę! 🚀" 
+        string statusText = newStatus == "Wysłane" || newStatus == "Nadane"
+            ? $"Twoja paczka o numerze śledzenia <strong>{orderNumber}</strong> została właśnie nadana i ruszyła w drogę! 🚀"
             : $"Status Twojego zamówienia o numerze śledzenia <strong>{orderNumber}</strong> zmienił się na: <strong>{newStatus}</strong>.";
 
         var bodyBuilder = new BodyBuilder
@@ -228,7 +235,8 @@ public class SmtpEmailService : IEmailService
     }
 
     // IMPLEMENTACJA NOWEJ METODY POWIADOMIENIA O REZERWACJI STACJONARNEJ
-    public async Task SendReservationEmailAsync(string toEmail, string userName, string bookTitle, string inventoryNumber, DateTime deadline)
+    public async Task SendReservationEmailAsync(string toEmail, string userName, string bookTitle,
+        string inventoryNumber, DateTime deadline)
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("Biblioteka Meow 🐾", "ksiegarniameow@gmail.com"));
@@ -268,7 +276,9 @@ public class SmtpEmailService : IEmailService
             }
         }
     }
-    public async Task SendLoanConfirmationEmailAsync(string toEmail, string userName, string bookTitle, DateTime dueDate)
+
+    public async Task SendLoanConfirmationEmailAsync(string toEmail, string userName, string bookTitle,
+        DateTime dueDate)
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("Biblioteka Meow 🐾", "ksiegarniameow@gmail.com"));
@@ -302,6 +312,43 @@ public class SmtpEmailService : IEmailService
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila wydania: {ex.Message}");
+            }
+        }
+    }
+
+    public async Task SendReturnConfirmationEmailAsync(string toEmail, string userName, string bookTitle)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("Biblioteka Meow 🐾", "ksiegarniameow@gmail.com"));
+        message.To.Add(new MailboxAddress(userName, toEmail));
+        message.Subject = "Potwierdzenie zwrotu książki do biblioteki 🐾";
+
+        var bodyBuilder = new BodyBuilder
+        {
+            HtmlBody = $@"
+            <h2>Cześć {userName}!</h2>
+            <p>Dziękujemy za dokonanie zwrotu książki w naszej placówce stacjonarnej.</p>
+            <p><strong>Zwrócona pozycja:</strong> „{bookTitle}”</p>
+            <p>Twoje wypożyczenie zostało pomyślnie zamknięte w bazie danych systemowych.</p>
+            <br/>
+            <p>Mruczącego dnia,<br/>Zespół meow 🐾</p>"
+        };
+
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using (var client = new SmtpClient())
+        {
+            try
+            {
+                await client.ConnectAsync("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
+                await client.AuthenticateAsync("ksiegarniameow@gmail.com", "kqxcgikrfdmpzrkv");
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+                Console.WriteLine($"🚀 Mail z potwierdzeniem zwrotu książki {bookTitle} wysłany do: {toEmail}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Błąd MailKit podczas wysyłania maila zwrotu: {ex.Message}");
             }
         }
     }
