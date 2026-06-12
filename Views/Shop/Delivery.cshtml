@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = "Dostawa i płatność";
+ViewData["Title"] = "Dostawa i płatność";
 }
 
 <style>
@@ -96,9 +96,9 @@
 </style>
 
 <div style="border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; font-size: 14px; color: #94a3b8; font-weight: 500; margin-top: 10px;">
-    <span style="color: #64748b;">Koszyk</span> &nbsp;➔&nbsp; 
-    <span style="color: #64748b;">Kasa (Adres)</span> &nbsp;➔&nbsp; 
-    <span style="color: #ff5a00; font-weight: bold; border-bottom: 2px solid #ff5a00; padding-bottom: 15px;">Dostawa i Płatność</span> &nbsp;➔&nbsp; 
+    <span style="color: #64748b;">Koszyk</span> &nbsp;➔&nbsp;
+    <span style="color: #64748b;">Kasa (Adres)</span> &nbsp;➔&nbsp;
+    <span style="color: #ff5a00; font-weight: bold; border-bottom: 2px solid #ff5a00; padding-bottom: 15px;">Dostawa i Płatność</span> &nbsp;➔&nbsp;
     <span>Gotowe</span>
 </div>
 
@@ -108,9 +108,9 @@
     <input type="hidden" name="metodaPlatnosci" id="hiddenPayment" value="BLIK" />
 
     <div class="checkout-container">
-        
+
         <div class="main-section">
-            
+
             <div class="checkout-block">
                 <h2 style="font-size: 20px; color: #1e293b; margin-top: 0; margin-bottom: 20px; font-weight: 700;">1. Wybierz sposób dostawy</h2>
 
@@ -140,7 +140,7 @@
             </div>
 
             <div class="checkout-block">
-                <h2 style="font-size: 20px; color: #1e293b; margin-top: 0; margin-bottom: 20px; font-weight: 700;">2. Wybierz metodę płatności</h2>
+                <h2 style="font-size: 20px; color: #1e293b; margin-top: 0; margin-bottom: 20px; font-weight: 700;">2. Wybierz metoda płatności</h2>
 
                 <div class="selection-tile payment-tile selected" onclick="selectPayment('BLIK', this)">
                     <div>
@@ -152,7 +152,16 @@
 
                 <div class="blik-input-container" id="blikField">
                     <label style="font-size: 13px; color: #475569; display: block; margin-bottom: 8px; font-weight: 600;">Wpisz 6-cyfrowy kod BLIK:</label>
-                    <input type="text" name="kodBlik" placeholder="000-000" maxlength="6" style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 16px; letter-spacing: 3px; font-weight: bold; width: 120px; text-align: center;" />
+                    <input type="text"
+                           id="kodBlik"
+                           name="kodBlik"
+                           placeholder="000000"
+                           maxlength="6"
+                           required
+                           pattern="\d{6}"
+                           inputmode="numeric"
+                           style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 16px; letter-spacing: 3px; font-weight: bold; width: 120px; text-align: center;" />
+                    <span id="blikErrorMessage" style="color: #dc3545; font-size: 12px; display: none; margin-top: 5px; font-weight: 600;">Kod BLIK musi się składać z dokładnie 6 cyfr!</span>
                 </div>
 
                 <div class="selection-tile payment-tile" style="margin-top: 12px;" onclick="selectPayment('Karta płatnicza', this)">
@@ -247,12 +256,42 @@
 
         document.getElementById('hiddenPayment').value = paymentName;
 
-        // Pokazywanie pola BLIK tylko gdy wybrano BLIK
+        // Pokazywanie pola BLIK tylko gdy wybrano BLIK + obsługa walidacji
         var blikField = document.getElementById('blikField');
+        var blikInput = document.getElementById('kodBlik');
+        var blikError = document.getElementById('blikErrorMessage');
+
         if (paymentName === 'BLIK') {
             blikField.style.display = 'block';
+            blikInput.setAttribute('required', 'required'); // Wymagaj pola
         } else {
             blikField.style.display = 'none';
+            blikInput.removeAttribute('required');          // Nie wymagaj pola
+            blikInput.value = '';                           // Wyczyść tekst
+            blikError.style.display = 'none';
         }
     }
+
+    // Blokada wpisywania nieliczbowych znaków w locie
+    document.getElementById('kodBlik')?.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+
+        var blikError = document.getElementById('blikErrorMessage');
+        if (this.value.length === 6) {
+            blikError.style.display = 'none';
+        }
+    });
+
+    // Sprawdzenie długości przed wysłaniem formularza przez użytkownika
+    document.getElementById('checkoutForm')?.addEventListener('submit', function(e) {
+        var paymentMethod = document.getElementById('hiddenPayment').value;
+        var blikInput = document.getElementById('kodBlik');
+        var blikError = document.getElementById('blikErrorMessage');
+
+        if (paymentMethod === 'BLIK' && blikInput.value.length !== 6) {
+            e.preventDefault(); // Zablokuj wysyłanie formularza do bazy danych
+            blikError.style.display = 'block';
+            blikInput.focus();
+        }
+    });
 </script>

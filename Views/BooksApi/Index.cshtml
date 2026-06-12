@@ -37,7 +37,7 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
         const alertContainer = document.getElementById('alertContainer');
 
         alertContainer.innerHTML = '';
-        container.innerHTML = ''; // Czyszczenie poprzednich wyników wyszukiwania
+        container.innerHTML = ''; 
 
         searchBtn.disabled = true;
         searchSpinner.classList.remove('d-none');
@@ -52,30 +52,26 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
             const data = await response.json();
 
             if (data.success) {
-             
                 data.books.forEach((book, index) => {
 
-                    // Przygotowanie okładki
                     const imgHtml = book.thumbnailUrl
                         ? `<img src="${book.thumbnailUrl}" alt="Okładka" class="img-fluid rounded shadow" style="max-height: 220px;" />`
                         : `<div class="text-muted border p-4">Brak okładki</div>`;
 
-                    // 🆕 Tłumaczenie formatu na polski i dobór koloru plakietki
                     let formatBadge = '<span class="badge bg-secondary">Książka</span>';
                     if (book.printType === 'MAGAZINE') {
                         formatBadge = '<span class="badge bg-warning text-dark">Magazyn/Czasopismo</span>';
                     } else if (book.thumbnailUrl && book.thumbnailUrl.includes("edge=curl")) {
-                  
                         formatBadge = '<span class="badge bg-info text-dark">E-Book / Cyfrowa</span>';
                     }
 
-                    // Bezpieczne parsowanie
+                    // Bezpieczne parsowanie cudzysłowów dla atrybutów danych HTML
                     const safeTitle = book.title.replace(/"/g, '&quot;');
                     const safeAuthors = (book.authors || "Nieznany autor").replace(/"/g, '&quot;');
-                    const safePublisher = book.publisher.replace(/"/g, '&quot;');
+                    const safePublisher = (book.publisher || "Nieznane wydawnictwo").replace(/"/g, '&quot;');
                     const safeDescription = (book.description || "Brak opisu").replace(/"/g, '&quot;');
 
-                    // Generowanie HTML karty dla pojedynczej książki
+                    // Generowanie HTML karty z dodatkowymi ukrytymi atrybutami data-* w buttonie
                     const bookCard = `
         <div class="card shadow-sm book-result-card">
             <div class="row g-0">
@@ -106,7 +102,11 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
                                     data-authors="${safeAuthors}" 
                                     data-publisher="${safePublisher}" 
                                     data-description="${safeDescription}" 
-                                    data-image-url="${book.thumbnailUrl}">
+                                    data-image-url="${book.thumbnailUrl}"
+                                    data-page-count="${book.pageCount}"
+                                    data-language="${book.language}"
+                                    data-print-type="${book.printType}"
+                                    data-published-date="${book.publishedDate}">
                                 <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                 <i class="bi bi-cloud-arrow-up"></i> Zapisz tę książkę w mojej bazie danych
                             </button>
@@ -119,7 +119,6 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
                     container.insertAdjacentHTML('beforeend', bookCard);
                 });
 
-                // Po wygenerowaniu kart, przypisujemy nasłuchiwanie zdarzeń dla nowych przycisków zapisu
                 initSaveButtons();
 
             } else {
@@ -133,7 +132,6 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
         }
     });
 
-    //Funkcja obsługująca zapisywanie konkretnej książki z listy
     function initSaveButtons() {
         const saveButtons = document.querySelectorAll('.save-book-btn');
 
@@ -145,15 +143,17 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
                 this.disabled = true;
                 spinner.classList.remove('d-none');
 
+                // POPRAWKA: Pobieramy dane bezpiecznie bezpośrednio z dataset przycisku
                 const formData = new URLSearchParams();
                 formData.append('title', this.getAttribute('data-title'));
                 formData.append('authors', this.getAttribute('data-authors'));
                 formData.append('publisher', this.getAttribute('data-publisher'));
                 formData.append('description', this.getAttribute('data-description'));
                 formData.append('imageUrl', this.getAttribute('data-image-url'));
-                formData.append('pageCount', currentCard.querySelector('ul.list-inline li:nth-last-child(3) span').innerText || "0");
-                formData.append('language', currentCard.querySelector('ul.list-inline li:last-child span').innerText || "pl");
-                formData.append('printType', currentCard.querySelector('ul.list-inline li:nth-last-child(5) span')?.innerText || "");
+                formData.append('pageCount', this.getAttribute('data-page-count') || "0");
+                formData.append('language', this.getAttribute('data-language') || "pl");
+                formData.append('printType', this.getAttribute('data-print-type') || "BOOK");
+                formData.append('publishedDate', this.getAttribute('data-published-date') || ""); // <-- Wysyłamy nową zmienną
 
                 try {
                     const response = await fetch('/api/booksapi/SaveToDatabase', {
@@ -190,8 +190,8 @@ ViewData["Title"] = "Wyszukiwarka Książek API";
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             `;
-        // Przewiń widok do alertu, aby użytkownik widział status zapisu
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 </script>
+}
 }

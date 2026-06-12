@@ -359,6 +359,12 @@ namespace meow.Controllers
         public IActionResult FinalizeOrder(string metodaDostawy, decimal kosztDostawy, string metodaPlatnosci,
             string? kodBlik)
         {
+            if (metodaPlatnosci == "Blik" && (string.IsNullOrEmpty(kodBlik) || kodBlik.Length != 6 || !kodBlik.All(char.IsDigit)))
+            {
+                TempData["Message"] = "Musisz podać poprawny, 6-cyfrowy kod BLIK.";
+                TempData["MessageType"] = "error";
+                return RedirectToAction("Cart"); 
+            }
             // 1. Wyciąga login tekstowy użytkownika z sesji
             var sessionUser = HttpContext.Session.GetString("User");
 

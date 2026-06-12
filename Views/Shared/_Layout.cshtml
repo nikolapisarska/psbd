@@ -3,6 +3,10 @@
 // Pobieramy dane z sesji na samym początku
 var userLogin = Context.Session.GetString("User");
 var userRole = Context.Session.GetString("UserRole");
+var cartString = Context.Session.GetString("Koszyk") ?? "";
+var cartCount = string.IsNullOrEmpty(cartString) 
+    ? 0 
+    : cartString.Split(',', StringSplitOptions.RemoveEmptyEntries).Length;
 }
 
 <!DOCTYPE html>
@@ -25,7 +29,7 @@ var userRole = Context.Session.GetString("UserRole");
         }
         else
         {
-            <a class="navbar-brand fw-bold fs-4 m-0" href="/Shop">🐾 meow księgarnia</a>
+            <a class="navbar-brand fw-bold fs-4 m-0" href="/">🐾 meow księgarnia</a>
         }
 
         <div class="d-flex align-items-center flex-grow-1 flex-sm-grow-0 justify-content-between gap-4 ms-auto w-100 w-sm-auto">
@@ -44,7 +48,7 @@ var userRole = Context.Session.GetString("UserRole");
 
                     <a class="nav-link text-white fw-medium small position-relative" href="/Shop/Cart">
                         Koszyk
-                        <span class="badge rounded-pill ms-1 cart-status text-white" style="background-color: #e67e22;">0</span>
+                        <span class="badge rounded-pill ms-1 cart-status text-white" style="background-color: #e67e22;">@cartCount</span>
                     </a>
                 }
 

@@ -96,6 +96,7 @@
     <h2>Modyfikacja zasobu #@Model.Id 🐾</h2>
 
     <form asp-controller="Books" asp-action="Edit" method="post" enctype="multipart/form-data">
+        @Html.AntiForgeryToken()
         <input type="hidden" name="Id" value="@Model.Id" />
 
         <div class="form-section">
@@ -112,9 +113,52 @@
             </div>
 
             <div class="form-group">
-                <label>Kategoria / Gatunek</label>
-                <input type="text" name="Gatunek" class="form-control" value="@Model.Gatunek" required>
-            </div>
+    <label>Kategoria / Gatunek</label>
+    <select name="Gatunek" class="form-control" required>
+        <option value="" disabled>-- Wybierz kategorię z listy --</option>
+
+        <optgroup label="Polecane">
+            <option value="Biografia" selected="@(Model.Gatunek == "Biografia")">Biografie</option>
+            <option value="Biznes" selected="@(Model.Gatunek == "Biznes")">Biznes</option>
+            <option value="Ezoteryka i parapsychologia" selected="@(Model.Gatunek == "Ezoteryka i parapsychologia")">Ezoteryka i parapsychologia</option>
+            <option value="Fantasy" selected="@(Model.Gatunek == "Fantasy")">Fantastyka</option>
+            <option value="Historia" selected="@(Model.Gatunek == "Historia")">Historia</option>
+            <option value="Komiksy, Mangy" selected="@(Model.Gatunek == "Komiksy, Mangy")">Komiksy</option>
+            <option value="Kryminał" selected="@(Model.Gatunek == "Kryminał")">Kryminał, sensacja, thriller</option>
+            <option value="Kuchnia i diety" selected="@(Model.Gatunek == "Kuchnia i diety")">Kuchnia i diety</option>
+        </optgroup>
+
+        <optgroup label="Kultura i sztuka">
+            <option value="Popularnonaukowa" selected="@(Model.Gatunek == "Popularnonaukowa")">Literatura faktu, reportaż</option>
+            <option value="Literatura obcojęzyczna" selected="@(Model.Gatunek == "Literatura obcojęzyczna")">Literatura obcojęzyczna</option>
+            <option value="Literatura obyczajowa" selected="@(Model.Gatunek == "Literatura obyczajowa")">Literatura obyczajowa</option>
+            <option value="Powieść" selected="@(Model.Gatunek == "Powieść")">Literatura piękna</option>
+            <option value="Nauka języków" selected="@(Model.Gatunek == "Nauka języków")">Nauka języków</option>
+            <option value="Nauki humanistyczne" selected="@(Model.Gatunek == "Nauki humanistyczne")">Nauki humanistyczne</option>
+            <option value="Naukowe" selected="@(Model.Gatunek == "Naukowe")">Nauki ścisłe, medycyna</option>
+            <option value="Podręczniki akademickie" selected="@(Model.Gatunek == "Podręczniki akademickie")">Podręczniki akademickie</option>
+            <option value="Podróże i turystyka" selected="@(Model.Gatunek == "Podróże i turystyka")">Podróże i turystyka</option>
+            <option value="Poezja" selected="@(Model.Gatunek == "Poezja")">Poezja i dramat</option>
+            <option value="Poradniki" selected="@(Model.Gatunek == "Poradniki")">Poradniki</option>
+            <option value="Prawo" selected="@(Model.Gatunek == "Prawo")">Prawo</option>
+            <option value="Religia" selected="@(Model.Gatunek == "Religia")">Religia</option>
+            <option value="Sport" selected="@(Model.Gatunek == "Sport")">Sport</option>
+        </optgroup>
+
+        <optgroup label="Książki dla dzieci">
+            <option value="Wiek-0-2" selected="@(Model.Gatunek == "Wiek-0-2")">0-2 lat</option>
+            <option value="Wiek-3-5" selected="@(Model.Gatunek == "Wiek-3-5")">3-5 lat</option>
+            <option value="Wiek-6-8" selected="@(Model.Gatunek == "Wiek-6-8")">6-8 lat</option>
+            <option value="Wiek-9-12" selected="@(Model.Gatunek == "Wiek-9-12")">9-12 lat</option>
+        </optgroup>
+
+        <optgroup label="Rozwój osobisty">
+            <option value="Emocje" selected="@(Model.Gatunek == "Emocje")">Emocje i uczucia</option>
+            <option value="Kariera" selected="@(Model.Gatunek == "Kariera")">Kariera i sukces</option>
+            <option value="Psychologia" selected="@(Model.Gatunek == "Psychologia")">Psychologia i motywacja</option>
+        </optgroup>
+    </select>
+</div>
 
             <div class="form-group">
                 <label>Rok wydania</label>
@@ -133,7 +177,7 @@
 
             <div class="form-group">
                 <label>Opis / Recenzja wydawcy</label>
-                <textarea name="opis" class="form-control" rows="5">@Model.Opis</textarea>
+                <textarea name="Opis" class="form-control" rows="5">@Model.Opis</textarea>
             </div>
 
             <div class="form-group">
@@ -152,17 +196,18 @@
             <h3>🛒 Zarządzanie sprzedażą</h3>
             <div class="form-group">
                 <label>Ilość egzemplarzy w bibliotece stacjonarnej (Wypożyczalnia)</label>
-                <input type="number" name="IloscBiblioteka Nowa" class="form-control" value="@Model.IloscEgzemplarzy" min="0" required>
+                <input type="number" name="IloscEgzemplarzy" class="form-control" value="@Model.IloscEgzemplarzy" min="0" required>
             </div>
+            
             <div class="form-group">
                 <label>Cena okładkowa / sugerowana wydawcy (PLN)</label>
-                <input type="text" name="cenaOkladkaPub" class="form-control" 
+                <input type="number" name="CenaOkladkowa" step="0.01" min="0" class="form-control" 
                        value="@Model.CenaOkladkowa?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)">
             </div>
 
             <div class="form-group">
                 <label>Cena detaliczna sprzedaży (PLN)</label>
-                <input type="text" name="cenaSklep" class="form-control" 
+                <input type="number" name="Cena" step="0.01" min="0" class="form-control" 
                        value="@Model.Cena?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)">
             </div>
             

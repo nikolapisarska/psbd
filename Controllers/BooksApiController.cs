@@ -135,48 +135,68 @@ namespace meow.Controllers
 
        
         [HttpPost("SaveToDatabase")]
-        public async Task<IActionResult> SaveToDatabase(string title, string authors, string publisher, string description, string imageUrl, int pageCount, string language, string printType)
+public async Task<IActionResult> SaveToDatabase(
+    string title, 
+    string authors, 
+    string publisher, 
+    string description, 
+    string imageUrl, 
+    int pageCount, 
+    string language, 
+    string printType,
+    string publishedDate) // <-- DODANO PARAMETR OD ZEWNĘTRZNEGO API
+{
+    if (string.IsNullOrEmpty(title))
+    {
+        return Json(new { success = false, message = "Nie udało się zapisać książki – brak tytułu." });
+    }
+
+    try
+    {
+        // POPRAWKA 1: Prawidłowe wyciąganie roku z publishedDate (np. "2023-05-12" lub "2023")
+        int rok = DateTime.Now.Year;
+        if (!string.IsNullOrEmpty(publishedDate) && publishedDate.Length >= 4) 
         {
-            if (string.IsNullOrEmpty(title))
-            {
-                return Json(new { success = false, message = "Nie udało się zapisać książki – brak tytułu." });
-            }
-
-            try
-            {
-                // Próba wyciągnięcia samego roku z formatu "YYYY-MM-DD" lub "YYYY" dostarczanego przez Google
-                int rok= DateTime.Now.Year;
-                if (!string.IsNullOrEmpty(printType) && printType.Length >= 4) {
-                    int.TryParse(printType.Substring(0, 4), out rok);
-                }
-
-                var newBook = new Book
-                {
-                    Tytul = title,
-                    Autor = string.IsNullOrEmpty(authors) ? "Nieznany autor" : authors,
-                    Wydawnictwo = string.IsNullOrEmpty(publisher) ? "Nieznane wydawnictwo" : publisher,
-                    Opis = description?.Length > 1000 ? description.Substring(0, 997) + "..." : description,
-                    ImageUrl = imageUrl,
-                    Cena = 0.00m,                     
-                    IloscEgzemplarzy = 1,             
-                    IloscDoSprzedazy = 0, 
-                    JezykWydania = string.IsNullOrEmpty(language) ? "polski" : language.ToLower(),
-                    NumerWydania = "I",
-                    LiczbaStron = pageCount > 0 ? pageCount : null,
-                    OkladkaTyp = printType == "MAGAZINE" ? "Miękka (magazyn)" : "Zwykła",
-                    RokWydania = rok
-                };
-
-                _context.Books.Add(newBook);
-                await _context.SaveChangesAsync();
-
-                return Json(new { success = true, message = $"Książka \"{newBook.Tytul}\" została pomyślnie zapisana w bazie systemu meow! 🐾" });
-            }
-            catch (Exception ex)
-            {
-                var innerMessage = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                return Json(new { success = false, message = "Błąd podczas zapisu do bazy danych: " + innerMessage });
-            }
+            int.TryParse(publishedDate.Substring(0, 4), out rok);
         }
+        
+        // Zabezpieczenie na wypadek, gdyby parsowanie dało dziwny rok poniżej dopuszczalnego w formularzu
+        if (rok < 1000) rok = DateTime.Now.Year;
+
+        var newBook = new Book
+        {
+            Tytul = title,
+            Autor = string.IsNullOrEmpty(authors) ? "Nieznany autor" : authors,
+            Wydawnictwo = string.IsNullOrEmpty(publisher) ? "Nieznane wydawnictwo" : publisher,
+            Opis = description?.Length > 1000 ? description.Substring(0, 997) + "..." : description,
+            ImageUrl = imageUrl,
+            
+            // Pola finansowo-magazynowe (gwarantujemy wartości liczbowe dla bazy)
+            Cena = 0.00m,                     
+            CenaOkladkowa = 0.00m,
+            IloscEgzemplarzy = 1, // Domyślnie 1 sztuka na półce biblioteki            
+            IloscDoSprzedazy = 0, 
+            
+            // POPRAWKA 2: Domyślny gatunek, aby walidator 'required' w edycji nie blokował zapisu
+            Gatunek = "Powieść", // Lub inna dowolna domyślna wartość z Twojej listy optgroup
+            
+            JezykWydania = string.IsNullOrEmpty(language) ? "polski" : language.ToLower(),
+            NumerWydania = "I",
+            LiczbaStron = pageCount > 0 ? pageCount : null,
+            OkladkaTyp = printType == "MAGAZINE" ? "Miękka (magazyn)" : "Zwykła",
+            RokWydania = rok
+        };
+
+        _context.Books.Add(newBook);
+        await _context.SaveChangesAsync();
+
+        return Json(new { success = true, message = $"Książka \"{newBook.Tytul}\" została pomyślnie zapisana w bazie systemu meow! 🐾" });
+    }
+    catch (Exception ex)
+    {
+        var innerMessage = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+        return Json(new { success = false, message = "Błąd podczas zapisu do bazy danych: " + innerMessage });
+    }
+}
     }
 }
